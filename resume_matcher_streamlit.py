@@ -1,27 +1,21 @@
 import streamlit as st
-from transformers import T5Tokenizer, T5ForConditionalGeneration
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
-import pandas as pd
 from docx import Document
-import pdfplumber
 from PIL import Image
+import pdfplumber
 import pytesseract
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+import pandas as pd
 
-# Load T5 model and tokenizer
-@st.cache_resource
-def load_t5_model():
-    model = T5ForConditionalGeneration.from_pretrained("t5-small")
-    tokenizer = T5Tokenizer.from_pretrained("t5-small")
-    return model, tokenizer
-
-model, tokenizer = load_t5_model()
-
-# Function to summarize text using T5
-def summarize_text(text):
-    inputs = tokenizer.encode("summarize: " + text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(inputs, max_length=150, min_length=40, length_penalty=2.0, num_beams=4, early_stopping=True)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+# Function to summarize text using Sumy
+def summarize_text(text, sentence_count=5):
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentence_count)
+    return " ".join(str(sentence) for sentence in summary)
 
 # Function to calculate similarity between job description and resumes
 def calculate_similarity(job_description, resumes):
@@ -49,7 +43,7 @@ def extract_text_from_file(file):
         return None
 
 # Streamlit app
-st.title("Resume Matcher with T5 and Streamlit")
+st.title("Resume Matcher with Sumy and Streamlit")
 
 # User role selection
 role = st.sidebar.selectbox("Select your role", ["Candidate", "HR", "Admin"])
