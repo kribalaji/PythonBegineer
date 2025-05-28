@@ -1,99 +1,21 @@
 import gradio as gr
+import pandas as pd  # For reading the CSV file
 import re  # For date validation
 
-# Updated data for countries, states, and cities
-location_data = {
-    "USA": {
-        "Alabama": ["Birmingham", "Montgomery", "Mobile"],
-        "Alaska": ["Anchorage", "Fairbanks", "Juneau"],
-        "Arizona": ["Phoenix", "Tucson", "Mesa"],
-        "Arkansas": ["Little Rock", "Fort Smith", "Fayetteville"],
-        "California": ["Los Angeles", "San Francisco", "San Diego"],
-        "Colorado": ["Denver", "Colorado Springs", "Aurora"],
-        "Connecticut": ["Bridgeport", "New Haven", "Hartford"],
-        "Delaware": ["Wilmington", "Dover", "Newark"],
-        "Florida": ["Miami", "Orlando", "Tampa"],
-        "Georgia": ["Atlanta", "Savannah", "Augusta"],
-        "Hawaii": ["Honolulu", "Hilo", "Kailua"],
-        "Idaho": ["Boise", "Meridian", "Nampa"],
-        "Illinois": ["Chicago", "Aurora", "Naperville"],
-        "Indiana": ["Indianapolis", "Fort Wayne", "Evansville"],
-        "Iowa": ["Des Moines", "Cedar Rapids", "Davenport"],
-        "Kansas": ["Wichita", "Overland Park", "Kansas City"],
-        "Kentucky": ["Louisville", "Lexington", "Bowling Green"],
-        "Louisiana": ["New Orleans", "Baton Rouge", "Shreveport"],
-        "Maine": ["Portland", "Lewiston", "Bangor"],
-        "Maryland": ["Baltimore", "Frederick", "Rockville"],
-        "Massachusetts": ["Boston", "Worcester", "Springfield"],
-        "Michigan": ["Detroit", "Grand Rapids", "Warren"],
-        "Minnesota": ["Minneapolis", "Saint Paul", "Rochester"],
-        "Mississippi": ["Jackson", "Gulfport", "Southaven"],
-        "Missouri": ["Kansas City", "Saint Louis", "Springfield"],
-        "Montana": ["Billings", "Missoula", "Great Falls"],
-        "Nebraska": ["Omaha", "Lincoln", "Bellevue"],
-        "Nevada": ["Las Vegas", "Reno", "Henderson"],
-        "New Hampshire": ["Manchester", "Nashua", "Concord"],
-        "New Jersey": ["Newark", "Jersey City", "Paterson"],
-        "New Mexico": ["Albuquerque", "Las Cruces", "Santa Fe"],
-        "New York": ["New York City", "Buffalo", "Rochester"],
-        "North Carolina": ["Charlotte", "Raleigh", "Greensboro"],
-        "North Dakota": ["Fargo", "Bismarck", "Grand Forks"],
-        "Ohio": ["Columbus", "Cleveland", "Cincinnati"],
-        "Oklahoma": ["Oklahoma City", "Tulsa", "Norman"],
-        "Oregon": ["Portland", "Salem", "Eugene"],
-        "Pennsylvania": ["Philadelphia", "Pittsburgh", "Allentown"],
-        "Rhode Island": ["Providence", "Warwick", "Cranston"],
-        "South Carolina": ["Charleston", "Columbia", "North Charleston"],
-        "South Dakota": ["Sioux Falls", "Rapid City", "Aberdeen"],
-        "Tennessee": ["Nashville", "Memphis", "Knoxville"],
-        "Texas": ["Houston", "Austin", "Dallas"],
-        "Utah": ["Salt Lake City", "West Valley City", "Provo"],
-        "Vermont": ["Burlington", "South Burlington", "Rutland"],
-        "Virginia": ["Virginia Beach", "Norfolk", "Chesapeake"],
-        "Washington": ["Seattle", "Spokane", "Tacoma"],
-        "West Virginia": ["Charleston", "Huntington", "Morgantown"],
-        "Wisconsin": ["Milwaukee", "Madison", "Green Bay"],
-        "Wyoming": ["Cheyenne", "Casper", "Laramie"],
-    },
-    "India": {
-        "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur"],
-        "Arunachal Pradesh": ["Itanagar", "Tawang", "Ziro"],
-        "Assam": ["Guwahati", "Silchar", "Dibrugarh"],
-        "Bihar": ["Patna", "Gaya", "Bhagalpur"],
-        "Chhattisgarh": ["Raipur", "Bilaspur", "Durg"],
-        "Goa": ["Panaji", "Margao", "Vasco da Gama"],
-        "Gujarat": ["Ahmedabad", "Surat", "Vadodara"],
-        "Haryana": ["Gurgaon", "Faridabad", "Panipat"],
-        "Himachal Pradesh": ["Shimla", "Manali", "Dharamshala"],
-        "Jharkhand": ["Ranchi", "Jamshedpur", "Dhanbad"],
-        "Karnataka": ["Bangalore", "Mysore", "Hubli"],
-        "Kerala": ["Thiruvananthapuram", "Kochi", "Kozhikode"],
-        "Madhya Pradesh": ["Bhopal", "Indore", "Gwalior"],
-        "Maharashtra": ["Mumbai", "Pune", "Nagpur"],
-        "Manipur": ["Imphal", "Churachandpur", "Thoubal"],
-        "Meghalaya": ["Shillong", "Tura", "Jowai"],
-        "Mizoram": ["Aizawl", "Lunglei", "Champhai"],
-        "Nagaland": ["Kohima", "Dimapur", "Mokokchung"],
-        "Odisha": ["Bhubaneswar", "Cuttack", "Rourkela"],
-        "Punjab": ["Chandigarh", "Ludhiana", "Amritsar"],
-        "Rajasthan": ["Jaipur", "Udaipur", "Jodhpur"],
-        "Sikkim": ["Gangtok", "Namchi", "Pelling"],
-        "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai"],
-        "Telangana": ["Hyderabad", "Warangal", "Nizamabad"],
-        "Tripura": ["Agartala", "Udaipur", "Dharmanagar"],
-        "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi"],
-        "Uttarakhand": ["Dehradun", "Haridwar", "Nainital"],
-        "West Bengal": ["Kolkata", "Darjeeling", "Siliguri"],
-        "Andaman and Nicobar Islands": ["Port Blair"],
-        "Chandigarh": ["Chandigarh"],
-        "Dadra and Nagar Haveli and Daman and Diu": ["Daman", "Silvassa"],
-        "Delhi": ["New Delhi"],
-        "Jammu and Kashmir": ["Srinagar", "Jammu"],
-        "Ladakh": ["Leh", "Kargil"],
-        "Lakshadweep": ["Kavaratti"],
-        "Puducherry": ["Pondicherry", "Karaikal"],
-    },
-}
+# Load location data from CSV
+def load_location_data(csv_file):
+    """Load location data from a CSV file and return as a dictionary."""
+    df = pd.read_csv(csv_file)
+    location_data = {}
+    for state, city in zip(df["State"], df["City"]):
+        if state not in location_data:
+            location_data[state] = []
+        location_data[state].append(city)
+    return location_data
+
+# Load the CSV file into location_data
+location_data = load_location_data("Indian_Cities_Database_Kaggle.csv")
+print(location_data)
 
 # Function to validate date formats
 def validate_date(date):
@@ -148,30 +70,55 @@ def collect_details(name, email, mobile, country, state, city, photo, projects):
 
 def update_states(country):
     """Update the states dropdown based on the selected country."""
-    if country in location_data:
-        return list(location_data[country].keys())
-    return ["Select a valid country"]
+    if country == "India":  # Assuming the country is India
+        return list(location_data.keys())  # Return only the list of states
+    return []  # Return an empty list if the country is invalid
 
 def update_cities(country, state):
     """Update the cities dropdown based on the selected country and state."""
     if isinstance(state, list):
-        state = state[0]
-    if country in location_data and state in location_data[country]:
-        return location_data[country][state]
-    return ["Select a valid state"]
+        state = state[0]  # Handle cases where state is passed as a list
+    if country == "India" and state in location_data:
+        cities = location_data[state]
+        print(f"Cities for {state}: {cities}")  # Debugging
+        return cities  # Return the list of cities for the selected state
+    return []  # Return an empty list if the state is invalid
 
-# Define the Gradio interface
-with gr.Blocks(title="Professional IT Resume Builder", description="Build your professional IT resume by providing your details below.") as interface:
+# Define the Gradio interface with custom CSS for background color
+with gr.Blocks(title="Professional IT Resume Builder", css=".interface { background-color: #f0f8ff; }") as interface:
+    # Add a bold header using Markdown
+    gr.Markdown("## **Professional IT Resume Builder**")
+    gr.Markdown("### Build your professional IT resume by providing your details below.")
+
     with gr.Row():
         name = gr.Textbox(label="Name", placeholder="Enter your full name")
         email = gr.Textbox(label="Email", placeholder="Enter your email address")
         mobile = gr.Textbox(label="Mobile Number", placeholder="Enter your mobile number")
     
     with gr.Row():
-        country = gr.Dropdown(label="Country", choices=list(location_data.keys()), value="USA", interactive=True)
-        state = gr.Dropdown(label="State", choices=[], interactive=True)
-        city = gr.Dropdown(label="City", choices=[], interactive=True)
+        # Country dropdown
+        country = gr.Dropdown(
+            label="Country",
+            choices=["India"],  # Only India is supported
+            value="India",  # Default value
+            interactive=True
+        )
+        # State dropdown
+        state = gr.Dropdown(
+            label="State",
+            choices=list(location_data.keys()),  # Populate with all states
+            value="TamilNadu",  # Default value
+            interactive=True
+        )
+        # City dropdown
+        city = gr.Dropdown(
+            label="City",
+            choices=location_data.get("TamilNadu", []),  # Populate with cities for TamilNadu
+            value="Chennai",  # Default value
+            interactive=True
+        )
     
+    # Link dropdown updates
     country.change(update_states, inputs=country, outputs=state)
     state.change(update_cities, inputs=[country, state], outputs=city)
 
