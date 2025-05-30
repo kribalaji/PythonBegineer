@@ -1,0 +1,189 @@
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif; /* Apply Poppins font globally */
+  background: linear-gradient(135deg, #4a90e2, #50c9c3); /* Blue to teal gradient */
+  color: white;
+  min-height: 100vh;
+}
+
+.App {
+  text-align: center;
+  font-family: 'Poppins', sans-serif; /* Ensure Poppins is applied */
+}
+
+.App-header {
+  background: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+  padding: 10px 20px; /* Reduced padding to shift up */
+  height: auto; /* Adjust height dynamically based on content */
+  border-radius: 0 0 10px 10px;
+}
+
+.App-header h1 {
+  font-size: 1.5rem; /* Adjusted font size */
+  margin: 0;
+}
+
+.App-container {
+  display: flex;
+  margin-top: 10px; /* Reduced margin to shift content up */
+}
+
+.App-sidebar {
+  width: 250px;
+  background: rgba(0, 0, 0, 0.8); /* Darker sidebar */
+  color: white;
+  padding: 15px; /* Adjusted padding for better spacing */
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  font-family: 'Poppins', sans-serif; /* Apply Poppins font to sidebar */
+}
+
+.App-sidebar h2 {
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.App-sidebar ul {
+  list-style: none;
+  padding: 0;
+}
+
+.App-sidebar li {
+  margin-bottom: 10px;
+}
+
+.App-sidebar button {
+  background: #50c9c3; /* Teal background */
+  color: white; /* White text */
+  border: none;
+  padding: 15px 20px; /* Increased padding for better spacing */
+  border-radius: 8px; /* Slightly rounded corners */
+  cursor: pointer;
+  width: 100%; /* Full width */
+  text-align: center; /* Center the text */
+  font-family: 'Poppins', sans-serif; /* Ensure Poppins font is applied */
+  font-size: 1.2rem; /* Increased font size for better readability */
+  font-weight: bold; /* Bold text */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2); /* Add shadow for better visibility */
+  transition: background 0.3s ease, transform 0.2s ease; /* Smooth hover effect */
+}
+
+.App-sidebar button:hover {
+  background: #4a90e2; /* Change background color on hover */
+  transform: translateY(-2px); /* Slight lift on hover */
+}
+
+.App-main {
+  flex: 1;
+  padding: 15px; /* Adjusted padding for main content */
+  background: rgba(255, 255, 255, 0.8); /* Semi-transparent white background */
+  border-radius: 10px;
+  color: black;
+  text-align: center;
+  position: relative; /* For positioning the text background */
+}
+
+.App-main p {
+  font-family: 'Poppins', sans-serif; /* Apply Poppins font */
+  font-size: 1.2rem; /* Reduced font size for better readability */
+  font-weight: 600; /* Bold text */
+  color: #333; /* Darker text for better contrast */
+  margin: 0 auto;
+  padding: 10px;
+  position: relative;
+  z-index: 2; /* Ensure the text is above the background */
+}
+
+.resume-form {
+  max-width: 1000px; /* Increased width for a broader form */
+  margin: 20px auto;
+  padding: 30px; /* Increased padding for better spacing */
+  background: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); /* Slightly deeper shadow for emphasis */
+}
+
+.resume-form h2 {
+  text-align: center;
+  margin-bottom: 25px; /* Increased spacing below the heading */
+  font-size: 2rem; /* Larger font size for the heading */
+  color: #333; /* Darker text color for better contrast */
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button[type="submit"] {
+  background: #50c9c3;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover {
+  background: #4a90e2;
+}
+
+.add-project-button {
+  background-color: #e6f7ff; /* Light blue background */
+  border-color: #91d5ff; /* Matching border color */
+  color: #0050b3; /* Dark blue text color */
+  cursor: pointer; /* Finger-pointing cursor */
+  font-weight: bold; /* Bold text */
+  transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth hover effect */
+}
+
+.add-project-button:hover {
+  background-color: #bae7ff; /* Darker blue on hover */
+  transform: translateY(-2px); /* Slight lift on hover */
+}
+
+@keyframes gradientAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes textGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
