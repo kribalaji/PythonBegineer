@@ -29,71 +29,79 @@ class ResumeBuilder(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.orientation = "vertical"
-        self.padding = 10
-        self.spacing = 10
+        self.padding = [20, 20, 20, 20]  # Padding: [left, top, right, bottom]
+        self.spacing = 10  # Space between widgets
 
         # Scrollable layout
-        scroll_view = ScrollView()
-        content = BoxLayout(orientation="vertical", size_hint_y=None)
+        scroll_view = ScrollView(size_hint=(1, None), size=(self.width, self.height))
+        content = BoxLayout(orientation="vertical", size_hint_y=None, spacing=15)
         content.bind(minimum_height=content.setter("height"))
         scroll_view.add_widget(content)
 
         # First Name
-        content.add_widget(Label(text="First Name:"))
-        self.first_name_input = TextInput(hint_text="Enter your first name")
+        content.add_widget(Label(text="First Name:", size_hint_y=None, height=30))
+        self.first_name_input = TextInput(hint_text="Enter your first name", size_hint_y=None, height=40)
         content.add_widget(self.first_name_input)
 
         # Last Name
-        content.add_widget(Label(text="Last Name:"))
-        self.last_name_input = TextInput(hint_text="Enter your last name")
+        content.add_widget(Label(text="Last Name:", size_hint_y=None, height=30))
+        self.last_name_input = TextInput(hint_text="Enter your last name", size_hint_y=None, height=40)
         content.add_widget(self.last_name_input)
 
         # Suffix
-        content.add_widget(Label(text="Suffix:"))
+        content.add_widget(Label(text="Suffix:", size_hint_y=None, height=30))
         self.suffix_spinner = Spinner(
             text="Select",
             values=["Mr", "Ms", "Mrs"],
+            size_hint_y=None,
+            height=40,
         )
         content.add_widget(self.suffix_spinner)
 
         # Employee ID
-        content.add_widget(Label(text="Employee ID:"))
-        self.employee_id_input = TextInput(hint_text="Enter your employee ID")
+        content.add_widget(Label(text="Employee ID:", size_hint_y=None, height=30))
+        self.employee_id_input = TextInput(hint_text="Enter your employee ID", size_hint_y=None, height=40)
         content.add_widget(self.employee_id_input)
 
         # Mobile Number
-        content.add_widget(Label(text="Mobile Number:"))
-        self.mobile_number_input = TextInput(hint_text="Enter your mobile number")
+        content.add_widget(Label(text="Mobile Number:", size_hint_y=None, height=30))
+        self.mobile_number_input = TextInput(hint_text="Enter your mobile number", size_hint_y=None, height=40)
         content.add_widget(self.mobile_number_input)
 
         # Country Code
-        content.add_widget(Label(text="Country Code:"))
+        content.add_widget(Label(text="Country Code:", size_hint_y=None, height=30))
         self.country_spinner = Spinner(
             text=DEFAULT_COUNTRY,
             values=[DEFAULT_COUNTRY] + list(location_data.keys()),
+            size_hint_y=None,
+            height=40,
         )
         self.country_spinner.bind(text=self.update_states)
         content.add_widget(self.country_spinner)
 
         # State
-        content.add_widget(Label(text="State:"))
+        content.add_widget(Label(text="State:", size_hint_y=None, height=30))
         self.state_spinner = Spinner(
             text=DEFAULT_STATE,
             values=[],
+            size_hint_y=None,
+            height=40,
         )
         self.state_spinner.bind(text=self.update_cities)
         content.add_widget(self.state_spinner)
 
         # City
-        content.add_widget(Label(text="City:"))
+        content.add_widget(Label(text="City:", size_hint_y=None, height=30))
         self.city_spinner = Spinner(
             text=DEFAULT_CITY,
             values=[],
+            size_hint_y=None,
+            height=40,
         )
         content.add_widget(self.city_spinner)
 
         # Submit Button
-        self.submit_button = Button(text="Submit", size_hint=(1, 0.2))
+        self.submit_button = Button(text="Submit", size_hint=(1, None), height=50)
         self.submit_button.bind(on_press=self.submit_form)
         content.add_widget(self.submit_button)
 
