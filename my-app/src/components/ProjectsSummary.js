@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Typography, Button, Box, TextField, MenuItem } from "@mui/material";
+import { Typography, Button, Box, TextField } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"; // Import Day.js adapter
 import dayjs from "dayjs";
@@ -33,7 +33,32 @@ const programmingLanguageOptions = [
   "AWS", "GCP", "Azure", "Docker", "Kubernetes", "SQL", "MySQL", "PostgreSQL", "MongoDB", "Redis",
   "GraphQL", "REST API", "SOAP", "Microservices", "Serverless", "Blockchain", "AI/ML", "Data Science",
   "Big Data", "Spark", "Hadoop", "Kafka", "ETL", "CI/CD", "Agile", "Scrum", "Kanban",
-  // Add more as needed, but keep the list manageable for performance
+];
+
+// DevOps Tools options
+const devOpsToolsOptions = [
+  "Jenkins", "GitLab CI/CD", "GitHub Actions", "CircleCI", "Travis CI",
+  "Ansible", "Puppet", "Chef", "Terraform", "Docker", "Kubernetes", "Helm",
+  "ArgoCD", "Prometheus", "Grafana", "ELK Stack", "SonarQube", "Nexus",
+  "JFrog Artifactory", "AWS CodePipeline", "AWS CodeBuild", "AWS CodeDeploy",
+  "Azure DevOps Pipelines", "GCP Cloud Build", "Spinnaker", "Istio", "Vault", "Consul"
+];
+
+// Version Controller options
+const versionControllerOptions = [
+  "Git", "GitHub", "GitLab", "Bitbucket", "Azure DevOps", "SVN", 
+  "Mercurial", "Perforce", "CVS", "TFS", "AWS CodeCommit", 
+  "Plastic SCM", "Fossil", "Bazaar", "Darcs", "Legacy-Tools"
+];
+
+// Database options
+const databaseOptions = [
+  "MySQL", "PostgreSQL", "Oracle", "SQL Server", "MariaDB", "SQLite", "DB2",
+  "Teradata", "Snowflake", "Redshift", "Vertica", "T-SQL", "PL/SQL", "MongoDB",
+  "Cassandra", "Redis", "DynamoDB", "Couchbase", "CouchDB", "Firebase Realtime Database",
+  "Neo4j", "HBase", "Elasticsearch", "AWS RDS", "AWS Aurora", "AWS DocumentDB",
+  "GCP BigQuery", "GCP Cloud SQL", "GCP Firestore", "GCP Spanner",
+  "Azure SQL Database", "Azure Cosmos DB", "Azure Table Storage", "Synapse Analytics", "Databricks"
 ];
 
 // Memoized ProjectFormItem component
@@ -45,45 +70,64 @@ const ProjectFormItem = React.memo(({
   onDateChange,
   onRemoveProject,
   isProjectInProgress,
-  // showSuggestions, // No longer needed for Autocomplete for this field
-  projectsCount
+  projectsCount,
+  programmingLanguageOptions,
+  devOpsToolsOptions,
+  versionControllerOptions,
+  databaseOptions
 }) => {
   // Convert comma-separated string from state to an array for Autocomplete's value prop
   const selectedLanguagesArray = project.programmingLanguages
     ? project.programmingLanguages.split(',').map(lang => lang.trim()).filter(lang => lang)
     : [];
+    
+  // Convert comma-separated string from state to an array for DevOps Tools
+  const selectedDevOpsToolsArray = project.devOpsTools
+    ? project.devOpsTools.split(',').map(tool => tool.trim()).filter(tool => tool)
+    : [];
+    
+  // Convert comma-separated string from state to an array for Version Controller
+  const selectedVersionControllerArray = project.versionController
+    ? project.versionController.split(',').map(vc => vc.trim()).filter(vc => vc)
+    : [];
+    
+  // Convert comma-separated string from state to an array for Databases
+  const selectedDatabasesArray = project.databases
+    ? project.databases.split(',').map(db => db.trim()).filter(db => db)
+    : [];
 
   return (
     <Box sx={{ marginBottom: 4, border: "1px solid #e0e0e0", padding: 2, borderRadius: 2, backgroundColor: "#ffffff", boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 1 }}>
-        <Typography
-          variant="h6"
-          sx={{ color: "#333", fontWeight: "bold" }}
-        >
-          Project: {project.title ? project.title : ""}
+        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+          <Typography
+            variant="h6"
+            sx={{ color: "#333", fontWeight: "bold", mr: 1 }}
+          >
+            Project: {project.title ? project.title : ""}
+          </Typography>
           {isProjectInProgress(project) && (
             <Typography
               component="span"
               sx={{
-                ml: 2,
                 fontSize: "0.8rem",
                 backgroundColor: "#4caf50",
                 color: "white",
                 padding: "3px 8px",
                 borderRadius: "12px",
-                verticalAlign: "middle",
+                display: "inline-block",
               }}
             >
               In Progress
             </Typography>
           )}
-        </Typography>
+        </Box>
         <Button
           variant="outlined"
           color="error"
           size="small"
           onClick={() => onRemoveProject(index)}
-          sx={{ ml: 2 }}
+          sx={{ ml: 2, flexShrink: 0 }}
         >
           {projectsCount > 1 ? "Remove Project" : "Reset Project"}
         </Button>
@@ -102,7 +146,6 @@ const ProjectFormItem = React.memo(({
         required
         sx={{
           fontSize: "14px",
-          // backgroundColor: "#f5f5f5", // Removing individual background for a cleaner look, parent will handle
           borderRadius: "5px",
         }}
       />
@@ -122,7 +165,6 @@ const ProjectFormItem = React.memo(({
         required
         sx={{
           fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
       />
@@ -142,38 +184,34 @@ const ProjectFormItem = React.memo(({
         required
         sx={{
           fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
       />
 
       {/* Programming Languages Input */}
       <Autocomplete
-        freeSolo // Allows typing arbitrary text not in options
-        multiple={true} // Allow multiple selections
+        freeSolo
+        multiple={true}
         options={programmingLanguageOptions}
-        value={selectedLanguagesArray} // Pass the array of selected languages
+        value={selectedLanguagesArray}
         onChange={(event, newValueArray) => {
-          // newValueArray is an array of strings (selected/entered items)
-          // Convert array back to a comma-separated string for storing in state
           onAutocompleteChange(index, "programmingLanguages", newValueArray.join(', '));
         }}
         renderInput={(params) => (
           <TextField
             {...params}
             label="Programming Languages"
-            name="programmingLanguages" // Keep name for consistency if needed
+            name="programmingLanguages"
             fullWidth
             margin="normal"
             inputProps={{
-              ...params.inputProps, // Spread default inputProps from Autocomplete
-              maxLength: 200, // Apply max length (to the underlying string state)
+              ...params.inputProps,
+              maxLength: 200,
             }}
             helperText={`${project.programmingLanguages.length}/200 characters. Select or add multiple languages.`}
-            required // Mark as required if necessary
+            required
             sx={{
               fontSize: "14px",
-              // backgroundColor: "#f5f5f5",
               borderRadius: "5px",
             }}
           />
@@ -184,96 +222,115 @@ const ProjectFormItem = React.memo(({
       />
 
       {/* DevOps Tools Input */}
-      <TextField
-        label="DevOps Tools"
-        name="devOpsTools"
-        value={project.devOpsTools || ""}
-        onChange={(e) => onInputChange(index, e)}
-        fullWidth
-        margin="normal"
-        inputProps={{
-          maxLength: 200,
-          list: "devOpsToolsList",
+      <Autocomplete
+        freeSolo
+        multiple={true}
+        options={devOpsToolsOptions}
+        value={selectedDevOpsToolsArray}
+        onChange={(event, newValueArray) => {
+          onAutocompleteChange(index, "devOpsTools", newValueArray.join(', '));
         }}
-        helperText={`${(project.devOpsTools || "").length}/200 characters. Separate multiple entries with commas.`}
-        autoComplete="on"
-        onKeyUp={(e) => {
-          if ((e.key === ',' || e.key === ' ') && e.target.list) {
-            setTimeout(() => {
-                const event = new Event('input', { bubbles: true });
-                e.target.dispatchEvent(event);
-            }, 10);
-          }
-        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="DevOps Tools"
+            name="devOpsTools"
+            fullWidth
+            margin="normal"
+            inputProps={{
+              ...params.inputProps,
+              maxLength: 200,
+            }}
+            helperText={`${(project.devOpsTools || "").length}/200 characters. Select or add multiple tools.`}
+            sx={{
+              fontSize: "14px",
+              borderRadius: "5px",
+            }}
+          />
+        )}
         sx={{
-          fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
       />
 
       {/* Version Controller Input */}
-      <TextField
-        select
-        label="Version Controller"
-        name="versionController"
-        value={project.versionController}
-        onChange={(e) => onInputChange(index, e)}
-        fullWidth
-        margin="normal"
+      <Autocomplete
+        freeSolo
+        multiple={true}
+        options={versionControllerOptions}
+        value={selectedVersionControllerArray}
+        onChange={(event, newValueArray) => {
+          onAutocompleteChange(index, "versionController", newValueArray.join(', '));
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Version Controller"
+            name="versionController"
+            fullWidth
+            margin="normal"
+            inputProps={{
+              ...params.inputProps,
+              maxLength: 200,
+            }}
+            helperText={`${(project.versionController || "").length}/200 characters. Select or add multiple version control tools.`}
+            required
+            sx={{
+              fontSize: "14px",
+              borderRadius: "5px",
+            }}
+          />
+        )}
         sx={{
-          fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
-      >
-        <MenuItem value="Git">Git</MenuItem>
-        <MenuItem value="SVN">SVN</MenuItem>
-        <MenuItem value="Legacy-Tools">Legacy-Tools</MenuItem>
-      </TextField>
+      />
 
-      {project.versionController === "Legacy-Tools" && (
+      {project.versionController && project.versionController.includes("Legacy-Tools") && (
         <TextField
           label="Legacy Tools Information"
           name="legacyToolsInfo"
-          value={project.legacyToolsInfo}
+          value={project.legacyToolsInfo || ""}
           onChange={(e) => onInputChange(index, e)}
           fullWidth
           margin="normal"
           required
           sx={{
             fontSize: "14px",
-            // backgroundColor: "#f5f5f5",
             borderRadius: "5px",
           }}
         />
       )}
 
       {/* Databases Input */}
-      <TextField
-        label="Databases"
-        name="databases"
-        value={project.databases}
-        onChange={(e) => onInputChange(index, e)}
-        fullWidth
-        margin="normal"
-        inputProps={{
-          maxLength: 200,
-          list: "databasesList",
+      <Autocomplete
+        freeSolo
+        multiple={true}
+        options={databaseOptions}
+        value={selectedDatabasesArray}
+        onChange={(event, newValueArray) => {
+          onAutocompleteChange(index, "databases", newValueArray.join(', '));
         }}
-        helperText={`${project.databases.length}/200 characters. Separate multiple entries with commas.`}
-        autoComplete="on"
-         onKeyUp={(e) => {
-          if ((e.key === ',' || e.key === ' ') && e.target.list) {
-            setTimeout(() => {
-                const event = new Event('input', { bubbles: true });
-                e.target.dispatchEvent(event);
-            }, 10);
-          }
-        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Databases"
+            name="databases"
+            fullWidth
+            margin="normal"
+            inputProps={{
+              ...params.inputProps,
+              maxLength: 200,
+            }}
+            helperText={`${project.databases.length}/200 characters. Select or add multiple databases.`}
+            required
+            sx={{
+              fontSize: "14px",
+              borderRadius: "5px",
+            }}
+          />
+        )}
         sx={{
-          fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
       />
@@ -291,7 +348,6 @@ const ProjectFormItem = React.memo(({
         type="url"
         sx={{
           fontSize: "14px",
-          // backgroundColor: "#f5f5f5",
           borderRadius: "5px",
         }}
       />
@@ -311,7 +367,6 @@ const ProjectFormItem = React.memo(({
             helperText={project.dateErrorFeedback?.startDate || "Select the project start date"}
             sx={{
               fontSize: "14px",
-              // backgroundColor: "#f5f5f5",
               borderRadius: "5px",
             }}
           />
@@ -326,7 +381,7 @@ const ProjectFormItem = React.memo(({
           label="End Date (Leave empty for current projects)"
           value={project.endDate}
           onChange={(value) => onDateChange(index, "endDate", value)}
-          minDate={project.startDate ? dayjs(project.startDate).add(1, 'day') : undefined} // End date must be after start date
+          minDate={project.startDate ? dayjs(project.startDate).add(1, 'day') : undefined}
           disabled={!project.startDate}
           renderInput={(params) => (
             <TextField
@@ -337,7 +392,6 @@ const ProjectFormItem = React.memo(({
               helperText={project.dateErrorFeedback?.endDate || (project.startDate ? "Leave empty if this is a current project" : "Please select a start date first")}
               sx={{
                 fontSize: "14px",
-                // backgroundColor: "#f5f5f5",
                 borderRadius: "5px",
                 "& .MuiInputLabel-root": {
                   fontSize: "14px", whiteSpace: "normal", lineHeight: "1.2",
@@ -360,24 +414,18 @@ function ProjectsSummary() {
 
   // State to manage multiple projects
   const [projects, setProjects] = useState([{ ...initialProjectState }]);
+  
+  // State to manage dynamic options lists
+  const [dynamicProgrammingLanguageOptions, setDynamicProgrammingLanguageOptions] = useState([...programmingLanguageOptions]);
+  const [dynamicDevOpsToolsOptions, setDynamicDevOpsToolsOptions] = useState([...devOpsToolsOptions]);
+  const [dynamicVersionControllerOptions, setDynamicVersionControllerOptions] = useState([...versionControllerOptions]);
+  const [dynamicDatabaseOptions, setDynamicDatabaseOptions] = useState([...databaseOptions]);
 
   // Handle input changes for a specific project
   const handleInputChange = useCallback((index, e) => {
     const { name, value } = e.target;
     const updatedProjects = [...projects];
     updatedProjects[index][name] = value;
-
-    if ((name === "devOpsTools" || name === "databases") &&
-        value.endsWith(",")) {
-      setTimeout(() => {
-        if (e.target && typeof e.target.focus === 'function') {
-            e.target.focus();
-            const event = new Event('input', { bubbles: true });
-            e.target.dispatchEvent(event);
-        }
-      }, 10);
-    }
-
     setProjects(updatedProjects);
   }, [projects]);
 
@@ -385,8 +433,36 @@ function ProjectsSummary() {
   const handleAutocompleteChange = useCallback((index, name, value) => {
     const updatedProjects = [...projects];
     updatedProjects[index][name] = value; // Value is already a comma-separated string
+    
+    // Add any new values to the respective options arrays
+    if (name === "programmingLanguages") {
+      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+      const newValues = valuesArray.filter(v => !dynamicProgrammingLanguageOptions.includes(v));
+      if (newValues.length > 0) {
+        setDynamicProgrammingLanguageOptions(prev => [...prev, ...newValues]);
+      }
+    } else if (name === "devOpsTools") {
+      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+      const newValues = valuesArray.filter(v => !dynamicDevOpsToolsOptions.includes(v));
+      if (newValues.length > 0) {
+        setDynamicDevOpsToolsOptions(prev => [...prev, ...newValues]);
+      }
+    } else if (name === "versionController") {
+      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+      const newValues = valuesArray.filter(v => !dynamicVersionControllerOptions.includes(v));
+      if (newValues.length > 0) {
+        setDynamicVersionControllerOptions(prev => [...prev, ...newValues]);
+      }
+    } else if (name === "databases") {
+      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+      const newValues = valuesArray.filter(v => !dynamicDatabaseOptions.includes(v));
+      if (newValues.length > 0) {
+        setDynamicDatabaseOptions(prev => [...prev, ...newValues]);
+      }
+    }
+    
     setProjects(updatedProjects);
-  }, [projects]);
+  }, [projects, dynamicProgrammingLanguageOptions, dynamicDevOpsToolsOptions, dynamicVersionControllerOptions, dynamicDatabaseOptions]);
 
   // Check if date already exists in other projects
   const isDateDuplicate = useCallback((date, fieldName, currentIndex) => {
@@ -405,9 +481,7 @@ function ProjectsSummary() {
 
     projectToUpdate.dateErrorFeedback = { ...projectToUpdate.dateErrorFeedback, [name]: "" };
 
-    let proposedStartDate = name === "startDate" ? value : projectToUpdate.startDate;
-    let proposedEndDate = name === "endDate" ? value : projectToUpdate.endDate;
-
+    // Check for duplicate dates
     if (value && isDateDuplicate(value, name, index)) {
       projectToUpdate.dateErrorFeedback[name] = `This ${name === "startDate" ? "start date" : "end date"} is already used.`;
       currentProjects[index] = projectToUpdate;
@@ -415,14 +489,17 @@ function ProjectsSummary() {
       return;
     }
 
-    if (proposedStartDate && !proposedEndDate) {
+    // Only check for in-progress projects when setting a new project to in-progress
+    // or when removing an end date (making a project in-progress)
+    if ((name === "startDate" && value && !projectToUpdate.endDate) || 
+        (name === "endDate" && !value && projectToUpdate.startDate)) {
       const otherInProgressProjects = projects.filter((p, i) =>
         i !== index && p.startDate && !p.endDate
       );
       if (otherInProgressProjects.length > 0) {
-        projectToUpdate.dateErrorFeedback[name === "endDate" ? "endDate" : "startDate"] = "Only one project can be 'In Progress'.";
+        projectToUpdate.dateErrorFeedback[name === "endDate" ? "endDate" : "startDate"] = 
+          "Only one project can be 'In Progress'. Please add an end date to your current in-progress project first.";
         if (name === "startDate") projectToUpdate.startDate = value;
-        else if (name === "endDate" && !value) projectToUpdate.endDate = null;
         currentProjects[index] = projectToUpdate;
         setProjects(currentProjects);
         return;
@@ -431,6 +508,7 @@ function ProjectsSummary() {
 
     projectToUpdate[name] = value;
 
+    // If changing start date and there's an end date, validate end date is after start date
     if (name === "startDate" && projectToUpdate.endDate && value) {
       if (dayjs(projectToUpdate.endDate).isBefore(dayjs(value)) || dayjs(projectToUpdate.endDate).isSame(dayjs(value))) {
         projectToUpdate.endDate = null;
@@ -438,6 +516,7 @@ function ProjectsSummary() {
       }
     }
 
+    // If changing end date, validate it's after start date
     if (name === "endDate" && value && projectToUpdate.startDate) {
       if (dayjs(value).isBefore(dayjs(projectToUpdate.startDate)) || dayjs(value).isSame(dayjs(projectToUpdate.startDate))) {
         projectToUpdate.endDate = null;
@@ -476,7 +555,7 @@ function ProjectsSummary() {
       lastProject.role.trim() &&
       lastProject.programmingLanguages.trim() &&
       lastProject.versionController.trim() &&
-      (lastProject.versionController !== "Legacy-Tools" || lastProject.legacyToolsInfo.trim()) &&
+      (lastProject.versionController.includes("Legacy-Tools") ? lastProject.legacyToolsInfo.trim() : true) &&
       lastProject.databases.trim() &&
       lastProject.startDate &&
       !lastProject.dateErrorFeedback?.startDate &&
@@ -488,25 +567,16 @@ function ProjectsSummary() {
     return project.startDate && !project.endDate;
   };
 
-  // This showSuggestions is now only relevant for datalist fields (DevOps Tools, Databases).
-  const showSuggestions = useCallback((e) => {
-    const input = e.target;
-    if (input && input.list) {
-        const event = new Event('input', { bubbles: true });
-        input.dispatchEvent(event);
-    }
-  }, []);
-
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box
         sx={{
           maxWidth: 800,
           margin: "0 auto",
-          padding: { xs: 2, sm: 3 }, // Responsive padding
-          backgroundColor: "#f4f6f8", // A soft, light grey background
+          padding: { xs: 2, sm: 3 },
+          backgroundColor: "#f4f6f8",
           borderRadius: 2,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)', // A slightly softer shadow
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           textAlign: "left",
         }}
       >
@@ -514,7 +584,7 @@ function ProjectsSummary() {
           variant="h5"
           align="center"
           gutterBottom
-          sx={{ color: "#2c3e50", fontWeight: "600", marginBottom: 3 }} // Darker, slightly bluish-grey, bolder
+          sx={{ color: "#2c3e50", fontWeight: "600", marginBottom: 3 }}
         >
           Projects Summary
         </Typography>
@@ -529,88 +599,17 @@ function ProjectsSummary() {
             onDateChange={handleDateChange}
             onRemoveProject={removeProject}
             isProjectInProgress={isProjectInProgress}
-            showSuggestions={showSuggestions}
             projectsCount={projects.length}
+            programmingLanguageOptions={dynamicProgrammingLanguageOptions}
+            devOpsToolsOptions={dynamicDevOpsToolsOptions}
+            versionControllerOptions={dynamicVersionControllerOptions}
+            databaseOptions={dynamicDatabaseOptions}
           />
         ))}
-
-        {/* Datalists for DevOps Tools and Databases */}
-        <>
-            {/* programmingLanguagesList is removed as Autocomplete is used */}
-            <datalist id="devOpsToolsList">
-              <option value="Jenkins" />
-              <option value="GitLab CI/CD" />
-              <option value="GitHub Actions" />
-              <option value="CircleCI" />
-              <option value="Travis CI" />
-              <option value="Ansible" />
-              <option value="Puppet" />
-              <option value="Chef" />
-              <option value="Terraform" />
-              <option value="Docker" />
-              <option value="Kubernetes" />
-              <option value="Helm" />
-              <option value="ArgoCD" />
-              <option value="Prometheus" />
-              <option value="Grafana" />
-              <option value="ELK Stack" />
-              <option value="SonarQube" />
-              <option value="Nexus" />
-              <option value="JFrog Artifactory" />
-              <option value="AWS CodePipeline" />
-              <option value="AWS CodeBuild" />
-              <option value="AWS CodeDeploy" />
-              <option value="Azure DevOps Pipelines" />
-              <option value="GCP Cloud Build" />
-              <option value="Spinnaker" />
-              <option value="Istio" />
-              <option value="Vault" />
-              <option value="Consul" />
-            </datalist>
-
-            <datalist id="databasesList">
-              <option value="MySQL" />
-              <option value="PostgreSQL" />
-              <option value="Oracle" />
-              <option value="SQL Server" />
-              <option value="MariaDB" />
-              <option value="SQLite" />
-              <option value="DB2" />
-              <option value="Teradata" />
-              <option value="Snowflake" />
-              <option value="Redshift" />
-              <option value="Vertica" />
-              <option value="T-SQL" />
-              <option value="PL/SQL" />
-              <option value="MongoDB" />
-              <option value="Cassandra" />
-              <option value="Redis" />
-              <option value="DynamoDB" />
-              <option value="Couchbase" />
-              <option value="CouchDB" />
-              <option value="Firebase Realtime Database" />
-              <option value="Neo4j" />
-              <option value="HBase" />
-              <option value="Elasticsearch" />
-              <option value="AWS RDS" />
-              <option value="AWS Aurora" />
-              <option value="AWS DocumentDB" />
-              <option value="GCP BigQuery" />
-              <option value="GCP Cloud SQL" />
-              <option value="GCP Firestore" />
-              <option value="GCP Spanner" />
-              <option value="Azure SQL Database" />
-              <option value="Azure Cosmos DB" />
-              <option value="Azure Table Storage" />
-              <option value="Synapse Analytics" />
-              <option value="Databricks" />
-            </datalist>
-        </>
 
         <Box sx={{ textAlign: "center", marginBottom: 3 }}>
           <Button
             variant="outlined"
-            // color="primary" // Using sx for more control
             onClick={addNextProject}
             disabled={!isAddNextProjectEnabled()}
             sx={{ marginRight: 2, borderColor: "#3498db", color: "#3498db", '&:hover': { borderColor: "#2980b9", backgroundColor: 'rgba(52, 152, 219, 0.04)' } }}
@@ -622,7 +621,6 @@ function ProjectsSummary() {
         <Box sx={{ textAlign: "center" }}>
           <Button
             variant="contained"
-            // color="primary" // Using sx for more control
             onClick={() => navigate("/summarize")}
             sx={{ width: "50%", backgroundColor: "#3498db", '&:hover': { backgroundColor: "#2980b9" } }}
           >
