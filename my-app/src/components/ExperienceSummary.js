@@ -23,6 +23,21 @@ function ExperienceSummary() {
       return;
     }
 
+    // Additional validation for months (0-12)
+    if (name === "monthsOfExperience" && value !== "") {
+      const monthValue = parseInt(value, 10);
+      if (monthValue > 12) {
+        alert("Months cannot exceed 12. Please enter a value between 0 and 12.");
+        return;
+      }
+    }
+
+    // Ensure years is a positive integer
+    if (name === "yearsOfExperience" && value !== "" && parseInt(value, 10) < 0) {
+      alert("Years of experience cannot be negative.");
+      return;
+    }
+
     setFormData({ ...formData, [name]: value });
   };
 
@@ -106,6 +121,8 @@ function ExperienceSummary() {
           type="number"
           fullWidth
           required
+          inputProps={{ min: 0 }}
+          helperText="Enter a positive integer"
           sx={{
             fontSize: "14px",
             backgroundColor: "#f5f5f5",
@@ -120,6 +137,8 @@ function ExperienceSummary() {
           type="number"
           fullWidth
           required
+          inputProps={{ min: 0, max: 12 }}
+          helperText="Enter a value between 0 and 12"
           sx={{
             fontSize: "14px",
             backgroundColor: "#f5f5f5",
