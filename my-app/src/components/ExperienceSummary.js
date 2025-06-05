@@ -1,9 +1,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Typography, Button, Box, TextField, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
+import { Typography, Button, Box, TextField, FormGroup, FormControlLabel, Checkbox, Autocomplete, CircularProgress } from "@mui/material";
+import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 function ExperienceSummary() {
   const navigate = useNavigate();
+
+  // Professional summary templates
+  const summaryTemplates = [
+    "Experienced software engineer with expertise in building scalable applications using modern technologies. Skilled in problem-solving and delivering high-quality code with a focus on performance and user experience.",
+    "Results-driven developer with a strong background in cloud technologies and microservices architecture. Passionate about creating efficient solutions that solve real-world problems.",
+    "Full-stack developer with experience in both frontend and backend technologies. Committed to writing clean, maintainable code and implementing best practices in software development.",
+    "DevOps engineer focused on automating deployment pipelines and improving system reliability. Experienced in containerization, CI/CD, and infrastructure as code.",
+    "Data scientist with expertise in machine learning algorithms and data analysis. Skilled in transforming complex data into actionable insights that drive business decisions.",
+    "Cloud architect specializing in designing and implementing secure, scalable solutions on major cloud platforms. Experienced in optimizing cloud resources for performance and cost-efficiency."
+  ];
 
   // State to store form data
   const [formData, setFormData] = useState({
@@ -13,6 +25,9 @@ function ExperienceSummary() {
     cloudPlatforms: [], // Array to store selected cloud platforms
     codeAIExperience: [], // Array to store selected Code AI Assistant experience
   });
+  
+  // State for generating custom summary
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Handle input changes
   const handleInputChange = (e) => {
@@ -39,6 +54,87 @@ function ExperienceSummary() {
     }
 
     setFormData({ ...formData, [name]: value });
+  };
+
+  // Handle template selection
+  const handleTemplateSelect = (event, newValue) => {
+    if (newValue) {
+      setFormData({
+        ...formData,
+        professionalSummary: newValue
+      });
+    }
+  };
+  
+  // Generate a custom summary based on user inputs
+  const generateCustomSummary = () => {
+    if (!formData.yearsOfExperience) {
+      alert("Please enter your years of experience first");
+      return;
+    }
+    
+    setIsGenerating(true);
+    
+    setTimeout(() => {
+      try {
+        // Get selected cloud platforms and AI tools
+        const cloudExp = formData.cloudPlatforms.filter(p => p !== "Not Applicable-Cloud");
+        const aiExp = formData.codeAIExperience.filter(a => a !== "Not Applicable-AI");
+        
+        // Find the most appropriate template based on selections
+        let bestTemplateIndex = 0; // Default to software engineer
+        
+        if (cloudExp.some(p => p.includes("AWS") || p.includes("Azure") || p.includes("GCP"))) {
+          bestTemplateIndex = 1; // Cloud-focused template
+          
+          if (cloudExp.length > 1) {
+            bestTemplateIndex = 5; // Cloud architect for multiple cloud platforms
+          }
+        }
+        
+        if (aiExp.length > 0) {
+          if (aiExp.length > 1) {
+            bestTemplateIndex = 4; // Data/AI-focused template for multiple AI tools
+          }
+        }
+        
+        // Customize the template with the user's experience
+        let customizedSummary = summaryTemplates[bestTemplateIndex];
+        
+        // Replace years of experience if mentioned in the template
+        customizedSummary = customizedSummary.replace(
+          /(\d+\+?)\s+years?/i, 
+          `${formData.yearsOfExperience}${formData.monthsOfExperience > 0 ? '+' : ''} years`
+        );
+        
+        // Add cloud platform experience if applicable
+        if (cloudExp.length > 0 && !customizedSummary.toLowerCase().includes("cloud")) {
+          customizedSummary = customizedSummary.replace(
+            /\.\s*$/,
+            `. Experienced with ${cloudExp.join(", ").replace(/-/g, " ")}.`
+          );
+        }
+        
+        // Add AI tools if applicable
+        if (aiExp.length > 0 && !customizedSummary.toLowerCase().includes("ai")) {
+          customizedSummary = customizedSummary.replace(
+            /\.\s*$/,
+            `. Proficient with ${aiExp.join(", ").replace(/-/g, " ")} for enhanced productivity.`
+          );
+        }
+        
+        setFormData({
+          ...formData,
+          professionalSummary: customizedSummary
+        });
+        
+      } catch (error) {
+        console.error("Error generating custom summary:", error);
+        alert("Failed to generate a custom summary. Please try again or select a template.");
+      } finally {
+        setIsGenerating(false);
+      }
+    }, 800); // Simulate processing time for better UX
   };
 
   // Handle checkbox changes for cloud platforms
@@ -143,6 +239,48 @@ function ExperienceSummary() {
       >
         Experience Summary
       </Typography>
+
+      {/* Professional Summary Template Selector */}
+      <Box sx={{ mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <LightbulbIcon sx={{ color: '#f9a825', mr: 1 }} />
+          <Typography variant="body2" color="text.secondary">
+            Select a template or write your own professional summary
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Autocomplete
+            options={summaryTemplates}
+            onChange={handleTemplateSelect}
+            fullWidth
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Summary Templates"
+                variant="outlined"
+                placeholder="Select a template or start typing"
+                sx={{
+                  ...textFieldStyles,
+                  "& .MuiOutlinedInput-root": {
+                    ...textFieldStyles["& .MuiOutlinedInput-root"],
+                    backgroundColor: "#fff8e1",
+                  }
+                }}
+              />
+            )}
+          />
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            onClick={generateCustomSummary}
+            disabled={isGenerating || !formData.yearsOfExperience}
+            startIcon={isGenerating ? <CircularProgress size={20} /> : <AutoAwesomeIcon />}
+            sx={{ minWidth: '180px', height: '56px' }}
+          >
+            {isGenerating ? "Generating..." : "Smart Generate"}
+          </Button>
+        </Box>
+      </Box>
 
       {/* Professional Summary */}
       <TextField

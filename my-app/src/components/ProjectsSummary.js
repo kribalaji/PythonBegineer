@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Typography, Button, Box, TextField } from "@mui/material";
+import { Typography, Button, Box, TextField, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"; // Import Day.js adapter
 import dayjs from "dayjs";
@@ -46,8 +46,8 @@ const devOpsToolsOptions = [
 
 // Version Controller options
 const versionControllerOptions = [
-  "Git", "GitHub", "GitLab", "Bitbucket", "Azure DevOps", "SVN", 
-  "Mercurial", "Perforce", "CVS", "TFS", "AWS CodeCommit", 
+  "Git", "GitHub", "GitLab", "Bitbucket", "Azure DevOps", "SVN",
+  "Mercurial", "Perforce", "CVS", "TFS", "AWS CodeCommit",
   "Plastic SCM", "Fossil", "Bazaar", "Darcs", "Legacy-Tools"
 ];
 
@@ -80,21 +80,31 @@ const ProjectFormItem = React.memo(({
   const selectedLanguagesArray = project.programmingLanguages
     ? project.programmingLanguages.split(',').map(lang => lang.trim()).filter(lang => lang)
     : [];
-    
+
   // Convert comma-separated string from state to an array for DevOps Tools
   const selectedDevOpsToolsArray = project.devOpsTools
     ? project.devOpsTools.split(',').map(tool => tool.trim()).filter(tool => tool)
     : [];
-    
+
   // Convert comma-separated string from state to an array for Version Controller
   const selectedVersionControllerArray = project.versionController
     ? project.versionController.split(',').map(vc => vc.trim()).filter(vc => vc)
     : [];
-    
+
   // Convert comma-separated string from state to an array for Databases
   const selectedDatabasesArray = project.databases
     ? project.databases.split(',').map(db => db.trim()).filter(db => db)
     : [];
+
+  // Conditional label and helper text for End Date
+  const endDateLabel = index > 0
+    ? "End Date"
+    : "End Date (Leave empty for current projects)";
+
+  const endDateHelperText = project.dateErrorFeedback?.endDate ||
+    (project.startDate
+      ? (index > 0 ? "Select the project end date" : "Leave empty if this is a current project")
+      : "Please select a start date first");
 
   return (
     <Box sx={{ marginBottom: 4, border: "1px solid #e0e0e0", padding: 2, borderRadius: 2, backgroundColor: "#ffffff", boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
@@ -378,7 +388,7 @@ const ProjectFormItem = React.memo(({
       {/* End Date Input - Optional */}
       <Box>
         <DatePicker
-          label="End Date (Leave empty for current projects)"
+          label={endDateLabel}
           value={project.endDate}
           onChange={(value) => onDateChange(index, "endDate", value)}
           minDate={project.startDate ? dayjs(project.startDate).add(1, 'day') : undefined}
@@ -389,7 +399,7 @@ const ProjectFormItem = React.memo(({
               fullWidth
               margin="normal"
               error={!!project.dateErrorFeedback?.endDate}
-              helperText={project.dateErrorFeedback?.endDate || (project.startDate ? "Leave empty if this is a current project" : "Please select a start date first")}
+              helperText={endDateHelperText}
               sx={{
                 fontSize: "14px",
                 borderRadius: "5px",
@@ -412,14 +422,37 @@ const ProjectFormItem = React.memo(({
 function ProjectsSummary() {
   const navigate = useNavigate();
 
+  // State for dialog popups
+  const [dialogState, setDialogState] = useState({
+    open: false,
+    title: "",
+    message: "",
+    severity: "info", // 'error', 'warning', 'info'
+  });
+
   // State to manage multiple projects
   const [projects, setProjects] = useState([{ ...initialProjectState }]);
-  
+
   // State to manage dynamic options lists
   const [dynamicProgrammingLanguageOptions, setDynamicProgrammingLanguageOptions] = useState([...programmingLanguageOptions]);
   const [dynamicDevOpsToolsOptions, setDynamicDevOpsToolsOptions] = useState([...devOpsToolsOptions]);
   const [dynamicVersionControllerOptions, setDynamicVersionControllerOptions] = useState([...versionControllerOptions]);
   const [dynamicDatabaseOptions, setDynamicDatabaseOptions] = useState([...databaseOptions]);
+
+  // Effect to show initial popup message
+  useEffect(() => {
+    setDialogState({
+      open: true,
+      title: "Project Guidance",
+      message: "Your first project should be your current or most recent project. If it's ongoing, leave the end date empty. Subsequent projects should have both start and end dates.",
+      severity: "info",
+    });
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  // Function to close the dialog
+  const handleCloseDialog = () => {
+    setDialogState(prev => ({ ...prev, open: false }));
+  };
 
   // Handle input changes for a specific project
   const handleInputChange = useCallback((index, e) => {
@@ -433,7 +466,7 @@ function ProjectsSummary() {
   const handleAutocompleteChange = useCallback((index, name, value) => {
     const updatedProjects = [...projects];
     updatedProjects[index][name] = value; // Value is already a comma-separated string
-    
+
     // Add any new values to the respective options arrays
     if (name === "programmingLanguages") {
       const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
@@ -460,7 +493,7 @@ function ProjectsSummary() {
         setDynamicDatabaseOptions(prev => [...prev, ...newValues]);
       }
     }
-    
+
     setProjects(updatedProjects);
   }, [projects, dynamicProgrammingLanguageOptions, dynamicDevOpsToolsOptions, dynamicVersionControllerOptions, dynamicDatabaseOptions]);
 
@@ -470,66 +503,103 @@ function ProjectsSummary() {
     return projects.some((project, idx) =>
       idx !== currentIndex &&
       project[fieldName] &&
-      project[fieldName].isSame(date, 'day')
+      dayjs(project[fieldName]).isSame(dayjs(date), 'day')
     );
   }, [projects]);
 
   // Handle date changes
   const handleDateChange = useCallback((index, name, value) => {
-    const currentProjects = [...projects];
-    const projectToUpdate = { ...currentProjects[index] };
+    const projectToUpdate = { ...projects[index] };
 
+    // Clear previous date error feedback for this field
     projectToUpdate.dateErrorFeedback = { ...projectToUpdate.dateErrorFeedback, [name]: "" };
 
-    // Check for duplicate dates
+    // --- 1. Global Duplicate Check ---
     if (value && isDateDuplicate(value, name, index)) {
-      projectToUpdate.dateErrorFeedback[name] = `This ${name === "startDate" ? "start date" : "end date"} is already used.`;
-      currentProjects[index] = projectToUpdate;
-      setProjects(currentProjects);
-      return;
-    }
-
-    // Only check for in-progress projects when setting a new project to in-progress
-    // or when removing an end date (making a project in-progress)
-    if ((name === "startDate" && value && !projectToUpdate.endDate) || 
-        (name === "endDate" && !value && projectToUpdate.startDate)) {
-      const otherInProgressProjects = projects.filter((p, i) =>
-        i !== index && p.startDate && !p.endDate
-      );
-      if (otherInProgressProjects.length > 0) {
-        projectToUpdate.dateErrorFeedback[name === "endDate" ? "endDate" : "startDate"] = 
-          "Only one project can be 'In Progress'. Please add an end date to your current in-progress project first.";
-        if (name === "startDate") projectToUpdate.startDate = value;
-        currentProjects[index] = projectToUpdate;
-        setProjects(currentProjects);
+        const dateType = name === "startDate" ? "start date" : "end date";
+        projectToUpdate.dateErrorFeedback[name] = `This ${dateType} is already used.`;
+        const updatedProjects = [...projects];
+        updatedProjects[index] = projectToUpdate; // projectToUpdate still has old date for 'name'
+        setProjects(updatedProjects);
+        setDialogState({ open: true, title: "Date Conflict", message: `A project with this ${dateType} already exists. Please choose a unique date.`, severity: "error" });
         return;
-      }
     }
 
+    // --- 2. Validations for Older Projects (index > 0) concerning First Project's Start Date ---
+    if (index > 0) { // For the second project onwards (older projects)
+        const firstProjectStartDate = projects[0]?.startDate;
+        if (value && firstProjectStartDate && (dayjs(value).isAfter(firstProjectStartDate, 'day') || dayjs(value).isSame(firstProjectStartDate, 'day'))) {
+            const dateType = name === "startDate" ? "start date" : "end date";
+            const errorMessage = `${dateType} for older projects must be before the current project's start date (${dayjs(firstProjectStartDate).format('MM/DD/YYYY')}).`;
+            projectToUpdate.dateErrorFeedback[name] = errorMessage; // projectToUpdate still has old date for 'name'
+            const updatedProjects = [...projects];
+            updatedProjects[index] = projectToUpdate;
+            setProjects(updatedProjects);
+            setDialogState({ open: true, title: "Date Order Conflict", message: errorMessage, severity: "error" });
+            return;
+        }
+    }
+
+    // If no hard errors so far, apply the new date value to projectToUpdate
     projectToUpdate[name] = value;
 
-    // If changing start date and there's an end date, validate end date is after start date
-    if (name === "startDate" && projectToUpdate.endDate && value) {
-      if (dayjs(projectToUpdate.endDate).isBefore(dayjs(value)) || dayjs(projectToUpdate.endDate).isSame(dayjs(value))) {
-        projectToUpdate.endDate = null;
-        projectToUpdate.dateErrorFeedback.endDate = "End date cleared (was before new start date).";
-      }
+    // --- 3. Internal Date Order (End Date > Start Date) ---
+    // This applies to all projects.
+    // Check if setting/changing an END date makes it invalid relative to its OWN start date.
+    if (name === "endDate" && projectToUpdate.endDate && projectToUpdate.startDate) {
+        if (dayjs(projectToUpdate.endDate).isBefore(projectToUpdate.startDate, 'day') || dayjs(projectToUpdate.endDate).isSame(projectToUpdate.startDate, 'day')) {
+            const errorMessage = "End date must be after start date.";
+            projectToUpdate.dateErrorFeedback.endDate = errorMessage;
+            projectToUpdate.endDate = null; // Corrective: Clear the invalid end date
+            const updatedProjects = [...projects];
+            updatedProjects[index] = projectToUpdate;
+            setProjects(updatedProjects);
+            setDialogState({ open: true, title: "Date Order Conflict", message: errorMessage, severity: "error" });
+            return;
+        }
     }
 
-    // If changing end date, validate it's after start date
-    if (name === "endDate" && value && projectToUpdate.startDate) {
-      if (dayjs(value).isBefore(dayjs(projectToUpdate.startDate)) || dayjs(value).isSame(dayjs(projectToUpdate.startDate))) {
-        projectToUpdate.endDate = null;
-        projectToUpdate.dateErrorFeedback.endDate = "End date must be after start date.";
-        currentProjects[index] = projectToUpdate;
-        setProjects(currentProjects);
-        return;
-      }
+    // --- 4. Corrective Action: If changing START date makes existing END date invalid ---
+    // This applies to all projects.
+    if (name === "startDate" && projectToUpdate.startDate && projectToUpdate.endDate) {
+        if (dayjs(projectToUpdate.endDate).isBefore(projectToUpdate.startDate, 'day') || dayjs(projectToUpdate.endDate).isSame(projectToUpdate.startDate, 'day')) {
+            projectToUpdate.endDate = null; // Corrective action
+            projectToUpdate.dateErrorFeedback.endDate = "End date cleared (was before or same as new start date).";
+            // No dialog, just local feedback. projectToUpdate is modified.
+        }
     }
 
-    currentProjects[index] = projectToUpdate;
-    setProjects(currentProjects);
-  }, [projects, isDateDuplicate]);
+    // --- 5. Warning for Older Projects (index > 0) needing an End Date ---
+    if (index > 0) {
+        if (projectToUpdate.startDate && !projectToUpdate.endDate) {
+            const warningMessage = "Older projects should have an end date.";
+            // Only set local feedback if there isn't a more severe error already
+            if (!projectToUpdate.dateErrorFeedback.endDate) {
+                projectToUpdate.dateErrorFeedback.endDate = warningMessage;
+            }
+            // Only show the dialog if it's not already showing a more severe error
+            if (dialogState.severity !== 'error') {
+               setDialogState({ open: true, title: "Missing End Date", message: warningMessage, severity: "warning" });
+            }
+        }
+    }
+
+    // --- 6. Dialog Management ---
+    // If a "Missing End Date" warning was active, but now the condition is resolved for that project, close it.
+    // This check needs to be specific to the project being edited and if the warning was actually shown for this project.
+    if (dialogState.open && dialogState.title === "Missing End Date" && dialogState.severity === 'warning') {
+        const isResolved = (index === 0) || (projectToUpdate.startDate && projectToUpdate.endDate);
+        if (isResolved) {
+             setDialogState(prev => ({ ...prev, open: false }));
+        }
+    }
+    // Other error dialogs (like "Date Conflict", "Date Order Conflict") are dismissed by the user clicking "OK".
+
+    // --- Final State Update ---
+    const updatedProjects = [...projects];
+    updatedProjects[index] = projectToUpdate;
+    setProjects(updatedProjects);
+  }, [projects, isDateDuplicate, dialogState.open, dialogState.title, dialogState.severity]);
 
   const addNextProject = () => {
     setProjects([
@@ -544,12 +614,22 @@ function ProjectsSummary() {
     } else if (projects.length === 1 && indexToRemove === 0) {
       setProjects([{ ...initialProjectState }]);
     }
-  }, [projects.length]);
+     // Clear dialog if it was showing an error/warning that might no longer be relevant
+     // This is a bit broad, but safer than leaving an irrelevant dialog open.
+     if (dialogState.open && (
+         ['Date Conflict', 'Date Order Conflict', 'Missing End Date', 'Project Status Conflict'].includes(dialogState.title)
+         )) {
+         setDialogState(prev => ({ ...prev, open: false }));
+     }
+     // Also clear any local date errors for the removed project
+     // This is implicitly handled by filtering the projects array, but good to note.
+  }, [projects.length, dialogState.open, dialogState.title]); // Removed dialogState.severity
 
   const isAddNextProjectEnabled = () => {
     if (projects.length === 0) return false;
     const lastProject = projects[projects.length - 1];
-    return (
+    // Check if the last project has required fields filled and no date errors
+    const hasRequiredFields =
       lastProject.title.trim() &&
       lastProject.description.trim() &&
       lastProject.role.trim() &&
@@ -557,10 +637,17 @@ function ProjectsSummary() {
       lastProject.versionController.trim() &&
       (lastProject.versionController.includes("Legacy-Tools") ? lastProject.legacyToolsInfo.trim() : true) &&
       lastProject.databases.trim() &&
-      lastProject.startDate &&
-      !lastProject.dateErrorFeedback?.startDate &&
-      !lastProject.dateErrorFeedback?.endDate
-    );
+      lastProject.startDate; // Start date is required for any project
+
+    const hasDateErrors = !!lastProject.dateErrorFeedback?.startDate || !!lastProject.dateErrorFeedback?.endDate;
+
+    // For the first project, only startDate is required to add the next
+    if (projects.length === 1) {
+        return hasRequiredFields && !hasDateErrors;
+    } else {
+        // For subsequent projects, both startDate and endDate are required to add the next
+        return hasRequiredFields && lastProject.endDate && !hasDateErrors;
+    }
   };
 
   const isProjectInProgress = (project) => {
@@ -588,6 +675,28 @@ function ProjectsSummary() {
         >
           Projects Summary
         </Typography>
+
+        {/* Dialog for Popups */}
+        <Dialog
+          open={dialogState.open}
+          onClose={handleCloseDialog}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
+        >
+          <DialogTitle id="alert-dialog-title" sx={{color: dialogState.severity === 'error' ? 'error.main' : (dialogState.severity === 'warning' ? 'warning.main' : 'primary.main')}}>
+            {dialogState.title}
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText id="alert-dialog-description">
+              {dialogState.message}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog} color="primary" autoFocus>
+              OK
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {projects.map((project, index) => (
           <ProjectFormItem
@@ -621,7 +730,34 @@ function ProjectsSummary() {
         <Box sx={{ textAlign: "center" }}>
           <Button
             variant="contained"
-            onClick={() => navigate("/summarize")}
+            onClick={() => {
+              // Optional: Add a final check before navigating
+              const hasAnyDateErrors = projects.some(p => p.dateErrorFeedback?.startDate || p.dateErrorFeedback?.endDate);
+              if (hasAnyDateErrors) {
+                 setDialogState({
+                    open: true,
+                    title: "Validation Errors",
+                    message: "Please fix the date errors highlighted in the form before proceeding.",
+                    severity: "error",
+                 });
+                 return; // Prevent navigation
+              }
+              // You might also want to check if all older projects have end dates here
+              const olderProjectsMissingEndDate = projects.slice(1).some(p => p.startDate && !p.endDate);
+               if (olderProjectsMissingEndDate) {
+                 setDialogState({
+                    open: true,
+                    title: "Missing End Dates",
+                    message: "Please add end dates for all older projects before proceeding.",
+                    severity: "warning", // Or error, depending on how strict you want this
+                 });
+                 return; // Prevent navigation
+              }
+
+              // If all checks pass, navigate
+              // You'll need to pass the projects data to the Summarize page
+              navigate("/summarize", { state: { projectsData: projects } });
+            }}
             sx={{ width: "50%", backgroundColor: "#3498db", '&:hover': { backgroundColor: "#2980b9" } }}
           >
             Next Page → Summarize
