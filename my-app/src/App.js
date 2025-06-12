@@ -13,7 +13,7 @@ function App() {
       <div className="App">
         {/* Header */}
         <header className="App-header">
-          <h1>Information Technology Skills World</h1>
+          <h1>Associate Data Center</h1>
         </header>
 
         {/* Main Content */}
@@ -30,6 +30,11 @@ function App() {
                     <li>
                       <Link to="/resume-form">
                         <button>Build My Resume</button>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link to="/resume-form">
+                        <button>Update My Resume</button>
                       </Link>
                     </li>
                     <li>

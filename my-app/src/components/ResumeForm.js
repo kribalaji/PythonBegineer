@@ -23,6 +23,7 @@ function ResumeForm() {
     country: "",
     state: "",
     city: "",
+    practice: "", // Added practice field
   });
 
   const [states, setStates] = useState([]);
@@ -87,6 +88,7 @@ function ResumeForm() {
     formData.country &&
     formData.state &&
     formData.city &&
+    formData.practice && // Added practice validation
     !errors.firstName &&
     !errors.lastName &&
     !errors.mobileNumber;
@@ -110,7 +112,7 @@ function ResumeForm() {
         gutterBottom
         sx={{ color: "#333" }} // Set text color to dark gray
       >
-        Resume Form
+        Associate Details
       </Typography>
       <TextField
         label="First Name"
@@ -269,6 +271,27 @@ function ResumeForm() {
             {city}
           </MenuItem>
         ))}
+      </TextField>
+      
+      {/* Practice dropdown field */}
+      <TextField
+        select
+        label="Practice"
+        name="practice"
+        value={formData.practice}
+        onChange={handleInputChange}
+        fullWidth
+        margin="normal"
+        required
+        sx={{
+          fontSize: "14px",
+          backgroundColor: "#f5f5f5", // Light gray background color
+          borderRadius: "5px", // Slightly rounded corners
+          textAlign: "left", // Left-align text
+        }}
+      >
+        <MenuItem value="Horizontal">Horizontal</MenuItem>
+        <MenuItem value="Vertical">Vertical</MenuItem>
       </TextField>
 
       <Button

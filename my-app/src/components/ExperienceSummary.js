@@ -1,20 +1,80 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Typography, Button, Box, TextField, FormGroup, FormControlLabel, Checkbox, Autocomplete, CircularProgress } from "@mui/material";
-import LightbulbIcon from '@mui/icons-material/Lightbulb';
+import { Typography, Button, Box, TextField, FormGroup, FormControlLabel, Checkbox, CircularProgress, InputAdornment, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 function ExperienceSummary() {
   const navigate = useNavigate();
 
+  // Arrays for dynamic content generation
+  const professionalTraits = [
+    "detail-oriented", "analytical", "innovative", "collaborative", "strategic", 
+    "results-driven", "adaptable", "resourceful", "methodical", "proactive"
+  ];
+
+  const experiencePhrases = [
+    "with {years}+ years of hands-on experience",
+    "bringing {years}+ years of professional experience",
+    "with over {years} years of industry experience",
+    "leveraging {years}+ years of technical expertise"
+  ];
+
+  const cloudPhrases = [
+    "Experienced with {platforms} for cloud-based solutions.",
+    "Proficient in implementing solutions using {platforms}.",
+    "Skilled in architecting and deploying on {platforms}.",
+    "Well-versed in {platforms} infrastructure and services."
+  ];
+
+  const aiPhrases = [
+    "Leverages {tools} to enhance development productivity and code quality.",
+    "Utilizes {tools} for accelerated development workflows.",
+    "Employs {tools} to streamline coding processes and improve efficiency.",
+    "Skilled in using {tools} to optimize development practices."
+  ];
+
   // Professional summary templates
   const summaryTemplates = [
+    // --- Technical Roles ---
     "Experienced software engineer with expertise in building scalable applications using modern technologies. Skilled in problem-solving and delivering high-quality code with a focus on performance and user experience.",
+    "Senior Software Engineer with a proven track record of designing and implementing complex software solutions. Adept at leading technical discussions and mentoring junior engineers to foster growth and innovation.",
     "Results-driven developer with a strong background in cloud technologies and microservices architecture. Passionate about creating efficient solutions that solve real-world problems.",
     "Full-stack developer with experience in both frontend and backend technologies. Committed to writing clean, maintainable code and implementing best practices in software development.",
     "DevOps engineer focused on automating deployment pipelines and improving system reliability. Experienced in containerization, CI/CD, and infrastructure as code.",
     "Data scientist with expertise in machine learning algorithms and data analysis. Skilled in transforming complex data into actionable insights that drive business decisions.",
-    "Cloud architect specializing in designing and implementing secure, scalable solutions on major cloud platforms. Experienced in optimizing cloud resources for performance and cost-efficiency."
+    "Cloud architect specializing in designing and implementing secure, scalable solutions on major cloud platforms. Experienced in optimizing cloud resources for performance and cost-efficiency.",
+    // --- Management & Leadership Roles ---
+    "Dynamic Team Lead with a talent for motivating engineering teams to achieve peak performance and deliver high-quality projects on schedule. Strong technical background combined with excellent communication and mentorship skills.",
+    "Accomplished Technical Manager with extensive experience in overseeing software development lifecycles, managing cross-functional teams, and aligning technology strategy with business goals. Proven ability to drive innovation and efficiency.",
+    "Strategic Team Manager focused on fostering a collaborative and inclusive environment, developing talent, and driving innovation within technical teams to exceed organizational objectives and deliver impactful results.",
+    "Proactive Account Manager skilled in building and maintaining strong client relationships, understanding customer needs, and ensuring successful project delivery and satisfaction. Adept at identifying new business opportunities.",
+    "Seasoned Program Manager with a strong ability to orchestrate complex, multi-faceted projects from inception to completion, ensuring alignment with strategic business objectives, budget adherence, and stakeholder expectations.",
+    "Detail-oriented Program Director adept at overseeing a portfolio of programs, managing budgets, mitigating risks, and leading diverse teams to achieve strategic initiatives and deliver impactful results across the organization.",
+    "Versatile Associate Director with a history of successfully leading teams and complex projects, contributing to strategic planning, and driving operational excellence within the technology domain. Passionate about mentorship and continuous improvement.",
+    "Visionary Senior Director with a comprehensive background in technology leadership, strategic planning, and organizational development. Proven ability to drive large-scale initiatives, foster innovation, and build high-performing global teams.",
+    // --- Entry-Level / Fresher ---
+    "Enthusiastic and highly motivated New Bee-Fresher eager to apply theoretical knowledge and develop practical skills in a challenging software development environment. Quick learner with a strong foundation in [mention 1-2 key skills/areas] and a passion for technology and innovation.",
+    // --- Specialized Roles ---
+    "Dedicated QA engineer with a keen eye for detail, proficient in manual and automated testing methodologies to ensure software quality, reliability, and user satisfaction. Experienced in developing test plans and executing test cases.",
+    "Cybersecurity analyst with a strong understanding of threat landscapes, vulnerability assessment, and security protocols. Committed to protecting organizational assets and data integrity through proactive monitoring and incident response.",
+    "Mobile application developer skilled in creating intuitive and high-performance apps for iOS and Android platforms, leveraging native and cross-platform frameworks to deliver engaging user experiences.",
+    "Solutions Architect with a knack for translating complex business requirements into robust and scalable technical solutions. Experienced in system design, integration, and stakeholder management.",
+    // --- Testing Engineering ---
+    "Detail-oriented Test Engineer with expertise in designing and implementing comprehensive test strategies for complex software systems. Skilled in both manual and automated testing approaches to ensure product quality and reliability.",
+    "Methodical QA Automation Engineer specializing in building robust test frameworks and CI/CD integration. Experienced in performance testing, regression testing, and developing maintainable test suites that improve product quality and release velocity.",
+    "Results-driven Test Lead with a strong background in quality assurance methodologies and test management. Adept at coordinating testing efforts across teams and ensuring thorough coverage of functional and non-functional requirements.",
+    // --- Data Engineering ---
+    "Skilled Data Engineer with expertise in designing and implementing data pipelines, warehouses, and lakes. Proficient in optimizing data flows and storage solutions to support analytics and machine learning initiatives.",
+    "Experienced Data Engineer focused on building scalable data infrastructure and processing systems. Adept at working with large datasets and implementing efficient ETL processes to transform raw data into valuable business insights.",
+    "Technical Data Engineer with a strong foundation in database technologies, distributed computing, and data modeling. Passionate about creating robust data architectures that enable organizations to leverage their data assets effectively.",
+    // --- ETL Development ---
+    "ETL Developer with extensive experience in designing, developing, and optimizing data integration solutions. Skilled in extracting data from diverse sources, applying complex transformations, and loading into target systems for analytics and reporting.",
+    "Data Integration Specialist focused on building reliable and efficient ETL pipelines. Experienced in handling large-scale data processing, ensuring data quality, and implementing best practices for maintainable ETL workflows.",
+    "ETL Solutions Developer with expertise in data warehousing concepts and ETL tool implementation. Adept at translating business requirements into technical specifications and delivering scalable data integration solutions.",
+    // --- Production Support ---
+    "Dedicated Production Support Engineer with a strong focus on system reliability and incident management. Experienced in troubleshooting complex issues, implementing preventive measures, and ensuring high availability of critical applications.",
+    "Responsive Production Support Specialist skilled in monitoring system health, diagnosing performance bottlenecks, and resolving production issues with minimal business impact. Committed to maintaining service level agreements and continuous improvement.",
+    "Technical Production Support Analyst with expertise in application support, problem resolution, and system optimization. Adept at collaborating with development teams to implement sustainable solutions and enhance system stability."
   ];
 
   // State to store form data
@@ -26,8 +86,11 @@ function ExperienceSummary() {
     codeAIExperience: [], // Array to store selected Code AI Assistant experience
   });
   
-  // State for generating custom summary
+  // State for generating custom summary and tracking selected template
   const [isGenerating, setIsGenerating] = useState(false);
+  // State for the project guidance dialog
+  const [isGuidanceDialogOpen, setIsGuidanceDialogOpen] = useState(false);
+  const [guidanceMessage, setGuidanceMessage] = useState("");
 
   // Handle input changes
   const handleInputChange = (e) => {
@@ -56,16 +119,6 @@ function ExperienceSummary() {
     setFormData({ ...formData, [name]: value });
   };
 
-  // Handle template selection
-  const handleTemplateSelect = (event, newValue) => {
-    if (newValue) {
-      setFormData({
-        ...formData,
-        professionalSummary: newValue
-      });
-    }
-  };
-  
   // Generate a custom summary based on user inputs
   const generateCustomSummary = () => {
     if (!formData.yearsOfExperience) {
@@ -81,47 +134,70 @@ function ExperienceSummary() {
         const cloudExp = formData.cloudPlatforms.filter(p => p !== "Not Applicable-Cloud");
         const aiExp = formData.codeAIExperience.filter(a => a !== "Not Applicable-AI");
         
-        // Find the most appropriate template based on selections
-        let bestTemplateIndex = 0; // Default to software engineer
+        // Use the current summary or pick a default if empty
+        let customizedSummary = formData.professionalSummary;
         
-        if (cloudExp.some(p => p.includes("AWS") || p.includes("Azure") || p.includes("GCP"))) {
-          bestTemplateIndex = 1; // Cloud-focused template
+        // If still no summary, pick one based on experience
+        if (!customizedSummary) {
+          // Find the most appropriate template based on selections
+          let bestTemplateIndex = 0;
           
-          if (cloudExp.length > 1) {
-            bestTemplateIndex = 5; // Cloud architect for multiple cloud platforms
+          if (cloudExp.some(p => p.includes("AWS") || p.includes("Azure") || p.includes("GCP"))) {
+            bestTemplateIndex = 2;
+            if (cloudExp.length > 1) bestTemplateIndex = 6;
+          }
+          
+          if (aiExp.length > 0 && aiExp.length > 1) {
+            bestTemplateIndex = 5;
+          }
+          
+          customizedSummary = summaryTemplates[bestTemplateIndex];
+        }
+        
+        // Select random professional trait
+        const randomTrait = professionalTraits[Math.floor(Math.random() * professionalTraits.length)];
+        
+        // Select random experience phrase and replace {years}
+        let randomExpPhrase = experiencePhrases[Math.floor(Math.random() * experiencePhrases.length)];
+        randomExpPhrase = randomExpPhrase.replace("{years}", formData.yearsOfExperience);
+        
+        // Replace years of experience with more dynamic phrasing
+        if (customizedSummary.match(/(\d+\+?)\s+years? of experience/i)) {
+          customizedSummary = customizedSummary.replace(
+            /(\d+\+?)\s+years? of experience/i, 
+            randomExpPhrase
+          );
+        } else {
+          // If no years phrase was found, add it at a strategic position
+          const sentences = customizedSummary.split('. ');
+          if (sentences.length > 1) {
+            sentences[0] = `${sentences[0]}. ${randomTrait.charAt(0).toUpperCase() + randomTrait.slice(1)} professional ${randomExpPhrase}`;
+            customizedSummary = sentences.join('. ');
+          } else {
+            customizedSummary = `${randomTrait.charAt(0).toUpperCase() + randomTrait.slice(1)} professional ${randomExpPhrase}. ${customizedSummary}`;
           }
         }
         
-        if (aiExp.length > 0) {
-          if (aiExp.length > 1) {
-            bestTemplateIndex = 4; // Data/AI-focused template for multiple AI tools
-          }
-        }
-        
-        // Customize the template with the user's experience
-        let customizedSummary = summaryTemplates[bestTemplateIndex];
-        
-        // Replace years of experience if mentioned in the template
-        customizedSummary = customizedSummary.replace(
-          /(\d+\+?)\s+years?/i, 
-          `${formData.yearsOfExperience}${formData.monthsOfExperience > 0 ? '+' : ''} years`
-        );
-        
-        // Add cloud platform experience if applicable
+        // Add cloud platform experience with varied phrasing
         if (cloudExp.length > 0 && !customizedSummary.toLowerCase().includes("cloud")) {
-          customizedSummary = customizedSummary.replace(
-            /\.\s*$/,
-            `. Experienced with ${cloudExp.join(", ").replace(/-/g, " ")}.`
-          );
+          const cloudPlatforms = cloudExp.join(", ").replace(/-/g, " ");
+          const randomCloudPhrase = cloudPhrases[Math.floor(Math.random() * cloudPhrases.length)]
+            .replace("{platforms}", cloudPlatforms);
+          
+          customizedSummary = customizedSummary.replace(/\.\s*$/, `. ${randomCloudPhrase}`);
         }
         
-        // Add AI tools if applicable
+        // Add AI tools with varied phrasing
         if (aiExp.length > 0 && !customizedSummary.toLowerCase().includes("ai")) {
-          customizedSummary = customizedSummary.replace(
-            /\.\s*$/,
-            `. Proficient with ${aiExp.join(", ").replace(/-/g, " ")} for enhanced productivity.`
-          );
+          const aiTools = aiExp.join(", ").replace(/-/g, " ");
+          const randomAiPhrase = aiPhrases[Math.floor(Math.random() * aiPhrases.length)]
+            .replace("{tools}", aiTools);
+          
+          customizedSummary = customizedSummary.replace(/\.\s*$/, `. ${randomAiPhrase}`);
         }
+        
+        // Ensure the summary doesn't end with multiple periods
+        customizedSummary = customizedSummary.replace(/\.+$/, '.');
         
         setFormData({
           ...formData,
@@ -134,7 +210,7 @@ function ExperienceSummary() {
       } finally {
         setIsGenerating(false);
       }
-    }, 800); // Simulate processing time for better UX
+    }, 1000);
   };
 
   // Handle checkbox changes for cloud platforms
@@ -194,10 +270,48 @@ function ExperienceSummary() {
     );
   };
 
+  // Determine the project guidance message based on years of experience
+  const getProjectGuidanceMessage = (years) => {
+    const yearsInt = parseInt(years, 10);
+
+    if (isNaN(yearsInt) || yearsInt < 0) {
+      return "Please enter a valid number of years of experience.";
+    }
+
+    if (yearsInt >= 0 && yearsInt <= 3) {
+      return `Based on your ${yearsInt} years of experience, we recommend including at least 1 project. If you're a New Bee/Fresher, consider showcasing a training project.`;
+    } else if (yearsInt > 3 && yearsInt <= 5) {
+      return `With ${yearsInt} years of experience, aiming for 2 to 3 projects will effectively highlight your skills and accomplishments.`;
+    } else if (yearsInt > 5 && yearsInt <= 10) {
+      return `Leveraging ${yearsInt} years of experience, we suggest including at least 4 to 5 projects to demonstrate the breadth and depth of your expertise.`;
+    } else if (yearsInt > 10) {
+      return `With over ${yearsInt} years of extensive experience, showcasing at least 5 significant projects will best represent your career achievements.`;
+    }
+    return "Please enter your years of experience to get project guidance."; // Fallback
+  };
+
   // Handle navigation to the next page
   const handleNext = () => {
-    console.log("Form Data:", formData); // Debugging: Log form data
-    navigate("../projects-summary");
+    if (isFormValid()) {
+      const message = getProjectGuidanceMessage(formData.yearsOfExperience);
+      setGuidanceMessage(message);
+      setIsGuidanceDialogOpen(true);
+    } else {
+      // Form is not valid, isFormValid() check on button handles this visually,
+      // but you might want an alert here too if needed.
+      alert("Please fill in all required fields.");
+    }
+  };
+
+  // Handle continuing from the guidance dialog to the next page
+  const handleContinueToProjects = () => {
+    setIsGuidanceDialogOpen(false); // Close the dialog
+    navigate("../projects-summary", {
+      state: {
+        overallExperienceYears: formData.yearsOfExperience
+      }
+    });
+    console.log("Form Data:", formData);
   };
 
   // Common styles for text fields
@@ -219,6 +333,7 @@ function ExperienceSummary() {
   };
 
   return (
+    <>
     <Box
       sx={{
         maxWidth: 800,
@@ -239,64 +354,6 @@ function ExperienceSummary() {
       >
         Experience Summary
       </Typography>
-
-      {/* Professional Summary Template Selector */}
-      <Box sx={{ mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <LightbulbIcon sx={{ color: '#f9a825', mr: 1 }} />
-          <Typography variant="body2" color="text.secondary">
-            Select a template or write your own professional summary
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Autocomplete
-            options={summaryTemplates}
-            onChange={handleTemplateSelect}
-            fullWidth
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Summary Templates"
-                variant="outlined"
-                placeholder="Select a template or start typing"
-                sx={{
-                  ...textFieldStyles,
-                  "& .MuiOutlinedInput-root": {
-                    ...textFieldStyles["& .MuiOutlinedInput-root"],
-                    backgroundColor: "#fff8e1",
-                  }
-                }}
-              />
-            )}
-          />
-          <Button 
-            variant="outlined" 
-            color="primary" 
-            onClick={generateCustomSummary}
-            disabled={isGenerating || !formData.yearsOfExperience}
-            startIcon={isGenerating ? <CircularProgress size={20} /> : <AutoAwesomeIcon />}
-            sx={{ minWidth: '180px', height: '56px' }}
-          >
-            {isGenerating ? "Generating..." : "Smart Generate"}
-          </Button>
-        </Box>
-      </Box>
-
-      {/* Professional Summary */}
-      <TextField
-        label="Professional Summary"
-        name="professionalSummary"
-        value={formData.professionalSummary}
-        onChange={handleInputChange}
-        fullWidth
-        multiline
-        rows={4}
-        margin="normal"
-        required
-        inputProps={{ maxLength: 500 }}
-        helperText={`${formData.professionalSummary.length}/500 characters`}
-        sx={textFieldStyles}
-      />
 
       {/* Total Number of Experience */}
       <Box sx={{ display: "flex", gap: 2, marginTop: 2 }}>
@@ -325,6 +382,40 @@ function ExperienceSummary() {
           sx={textFieldStyles}
         />
       </Box>
+
+      {/* Professional Summary */}
+      <TextField
+        label="Professional Summary"
+        name="professionalSummary"
+        value={formData.professionalSummary}
+        onChange={handleInputChange}
+        fullWidth
+        multiline
+        rows={4}
+        margin="normal"
+        required
+        inputProps={{ maxLength: 500 }}
+        helperText={`${formData.professionalSummary.length}/500 characters`}
+        sx={textFieldStyles}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end" sx={{ alignItems: 'flex-start', height: '100%', pt: 1 }}>
+              <Tooltip title="Generate Summary Suggestion">
+                <IconButton
+                  onClick={generateCustomSummary}
+                  disabled={isGenerating || !formData.yearsOfExperience}
+                  edge="end"
+                  size="small"
+                  sx={{ mb: 'auto' }} // Aligns icon to the top of the adornment space
+                >
+                  {isGenerating ? <CircularProgress size={24} /> : <AutoAwesomeIcon color="primary" />}
+                </IconButton>
+              </Tooltip>
+            </InputAdornment>
+          ),
+        }}
+      />
+
 
       {/* Cloud Platform Experience */}
       <Box
@@ -508,6 +599,31 @@ function ExperienceSummary() {
         Next Page → Projects Summary
       </Button>
     </Box>
+
+    {/* Project Guidance Dialog */}
+    <Dialog
+      open={isGuidanceDialogOpen}
+      onClose={() => setIsGuidanceDialogOpen(false)} // Allow closing by clicking outside or pressing Escape
+      aria-labelledby="project-guidance-dialog-title"
+      aria-describedby="project-guidance-dialog-description"
+    >
+      <DialogTitle id="project-guidance-dialog-title" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+        Project Guidance
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText id="project-guidance-dialog-description">
+          {guidanceMessage}
+        </DialogContentText>
+        <DialogContentText sx={{ mt: 2, fontStyle: 'italic', fontSize: '0.9rem', color: 'text.secondary' }}>
+          This is a recommendation to help you build a comprehensive profile. You can add more or fewer projects as needed.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setIsGuidanceDialogOpen(false)} color="primary">Back to Edit</Button>
+        <Button onClick={handleContinueToProjects} color="primary" variant="contained" autoFocus>Continue to Projects</Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Typography, Form, Input } from "antd";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Typography, Form, Input, Select as AntdSelect } from "antd"; // Added AntdSelect
+import { useLocation, useNavigate} from "react-router-dom";
 import nlp from "compromise";
 import {
   Box,
@@ -9,10 +9,15 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogContentText,
   DialogActions,
   Button,
+  Grid, // For layout in ratings dialog
+  Tooltip, // Added for info icons
+  IconButton, // Added for info icons
 } from "@mui/material";
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'; // Added for info icons
 
 const { TextArea } = Input;
 
@@ -47,13 +52,6 @@ const extractTechnicalSkills = (text) => {
   return foundSkills;
 };
 
-// Helper function to extract years of experience
-const extractExperienceYears = (text) => {
-  const experienceRegex = /(\d+)[\s-]*years? of experience/i;
-  const match = text.match(experienceRegex);
-  return match ? parseInt(match[1]) : 0;
-};
-
 // Helper function to calculate management score
 const calculateManagementScore = (text) => {
   const managementKeywords = [
@@ -71,6 +69,24 @@ const calculateManagementScore = (text) => {
     }
   });
   
+  return score;
+};
+
+// Helper function to calculate technical role score
+const calculateTechRoleScore = (text) => {
+  const techRoleKeywords = [
+    "engineer", "developer", "architect", "specialist", "analyst", "programmer",
+    "consultant", "scientist", "designer", "tester", "qa", "technical lead", // "technical lead" is more tech-focused
+    "devops", "cloud engineer", "data engineer", "software engineer", "frontend developer", "backend developer"
+  ];
+  let score = 0;
+  const lowerText = text.toLowerCase();
+
+  techRoleKeywords.forEach(keyword => {
+    if (lowerText.includes(keyword.toLowerCase())) {
+      score++;
+    }
+  });
   return score;
 };
 
@@ -133,8 +149,8 @@ const determineBestRole = (techSkills, managementScore, text) => {
 };
 
 // Enhanced NLP function for better summarization
-const generateSummaryAndRole = (projectDetails) => {
-  if (!projectDetails || projectDetails.trim() === "" || projectDetails.length < 20) {
+const generateInitialSummaryAndRole = (concatenatedDetails, overallExperienceYearsInput) => { 
+  if (!concatenatedDetails || concatenatedDetails.trim() === "" || concatenatedDetails.length < 20) {
     return {
       summaryObject: {
         error: true
@@ -144,17 +160,20 @@ const generateSummaryAndRole = (projectDetails) => {
   }
 
   // Extract key information using compromise
-  const doc = nlp(projectDetails);
+  const doc = nlp(concatenatedDetails);
   
   // Extract technical skills
-  const techSkills = extractTechnicalSkills(projectDetails);
+  const techSkills = extractTechnicalSkills(concatenatedDetails);
   
-  // Extract years of experience
-  const experienceYears = extractExperienceYears(projectDetails);
+  // Use passed-in overall experience
+  const experienceYears = overallExperienceYearsInput || 0; 
   
   // Extract management indicators
-  const managementScore = calculateManagementScore(projectDetails);
+  const managementScore = calculateManagementScore(concatenatedDetails);
   
+  // Extract technical role indicators
+  const techRoleScore = calculateTechRoleScore(concatenatedDetails);
+
   // Generate a more comprehensive summary
   let summarizedProfile = "";
   
@@ -185,7 +204,7 @@ const generateSummaryAndRole = (projectDetails) => {
   }
   
   // Determine the most suitable role
-  const suggestedRole = determineBestRole(techSkills, managementScore, projectDetails);
+  const suggestedRole = determineBestRole(techSkills, managementScore, concatenatedDetails);
   
   return {
     summaryObject: {
@@ -193,6 +212,7 @@ const generateSummaryAndRole = (projectDetails) => {
       skills: techSkills,
       experience: experienceYears,
       managementScore: managementScore,
+      techRoleScore: techRoleScore, // Added tech role score
       keyTopics: keyTopics,
       error: false
     },
@@ -200,58 +220,137 @@ const generateSummaryAndRole = (projectDetails) => {
   };
 };
 
+// Function to adjust role based on performance rating
+const adjustRoleBasedOnRating = (currentRole, averageRating) => {
+  if (averageRating === null || averageRating === undefined) return currentRole;
+
+  const role = currentRole.toLowerCase();
+  const isAlreadyManager = role.includes("manager") || role.includes("architect") || role.includes("director");
+  const isAlreadyLead = role.includes("lead");
+
+  if (averageRating === 4) {
+    if (!isAlreadyManager && !isAlreadyLead) {
+      return `Lead ${currentRole}`;
+    }
+  } else if (averageRating >= 5) { // averageRating > 4 means 5
+    if (!isAlreadyManager) {
+      if (role.includes("cloud")) return "Technical Manager (Cloud)";
+      if (role.includes("data")) return "Technical Manager (Data)";
+      // Add more specific manager roles if needed
+      return "Technical Manager";
+    }
+  }
+  return currentRole; // For ratings < 4 or if no promotion applies
+};
+
 function Summarize() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { projectDetails } = location.state || { projectDetails: "" };
+  // Correctly get projectsData, which is an array of project objects
+  const { projectsData, overallExperience: routeOverallExperience } = location.state || { projectsData: [], overallExperience: 0 };
 
   const [summary, setSummary] = useState("");
+  const [summaryObject, setSummaryObject] = useState(null); // To store the full summary object
   const [jobRole, setJobRole] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [processingDialogOpen, setProcessingDialogOpen] = useState(true);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [redirectDialogOpen, setRedirectDialogOpen] = useState(false);
   const [redirectTarget, setRedirectTarget] = useState("");
+  
+  // State for performance ratings
+  const [isRatingsDialogOpen, setIsRatingsDialogOpen] = useState(false);
+  const [ratingYears, setRatingYears] = useState([]);
+  const [performanceRatings, setPerformanceRatings] = useState({});
+  const [averagePerformanceRating, setAveragePerformanceRating] = useState(null);
+  const [ratingsError, setRatingsError] = useState("");
 
   useEffect(() => {
-    setIsLoading(true);
-    setProcessingDialogOpen(true);
-    
-    // Simulate processing time with a minimum delay for better UX
-    const processingTimer = setTimeout(() => {
-      if (projectDetails && projectDetails.trim() !== "") {
-        const { summaryObject, jobRole: newJobRole } = generateSummaryAndRole(projectDetails);
-        
-        if (summaryObject.error) {
-          // Show error dialog instead of summary
-          setErrorDialogOpen(true);
-          setProcessingDialogOpen(false);
-          setIsLoading(false);
-        } else {
-          setSummary(summaryObject.summary || "");
-          setJobRole(newJobRole);
-          setProcessingDialogOpen(false);
-          setIsLoading(false);
-        }
-      } else {
-        // Show error dialog
-        setErrorDialogOpen(true);
-        setProcessingDialogOpen(false);
-        setIsLoading(false);
-      }
-    }, 1500);
+    // Initially, we are not "loading" a summary, but setting up for ratings or showing an error.
+    setIsLoading(false); 
+    setProcessingDialogOpen(false); // Ensure this is false initially
 
-    return () => clearTimeout(processingTimer);
-  }, [projectDetails]);
+    // Calculate last three years for ratings
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 1, currentYear - 2, currentYear - 3];
+    setRatingYears(years);
+    setPerformanceRatings(years.reduce((acc, year) => ({ ...acc, [year]: null }), {}));
+    
+    // Open ratings dialog first
+    if (projectsData && projectsData.length > 0) {
+      setIsRatingsDialogOpen(true);
+    } else {
+      // No project data, show error
+      setErrorDialogOpen(true);
+    }
+  }, [projectsData, routeOverallExperience]); // Add routeOverallExperience
+
+  const processSummarization = (avgRating) => {
+    setIsRatingsDialogOpen(false); // Ensure ratings dialog is closed
+    setProcessingDialogOpen(true); // Now show processing for actual summarization
+    setIsLoading(true); // Set loading true for the summary generation phase
+
+    setTimeout(() => {
+        const concatenatedDetails = projectsData
+            .map(p => `${p.title || ""} ${p.description || ""} ${p.role || ""} ${p.programmingLanguages || ""} ${p.devOpsTools || ""} ${p.databases || ""}`)
+            .join("\n\n");
+
+        const { summaryObject: initialSummaryObj, jobRole: initialJobRole } = generateInitialSummaryAndRole(concatenatedDetails, routeOverallExperience);
+
+        if (initialSummaryObj.error) {
+            setErrorDialogOpen(true);
+        } else {
+            const finalJobRole = adjustRoleBasedOnRating(initialJobRole, avgRating);
+            setSummary(initialSummaryObj.summary || "");
+            setSummaryObject(initialSummaryObj); // Store the full object
+            setJobRole(finalJobRole);
+        }
+        setProcessingDialogOpen(false); // Stop processing dialog
+        setIsLoading(false); // Stop main loading indicator
+    }, 1500);
+  };
+
+  const handleRatingsSubmit = () => {
+    const ratings = Object.values(performanceRatings);
+    if (ratings.some(r => r === null || r === undefined || r === "")) {
+      setRatingsError("Please provide ratings for all three years.");
+      return;
+    }
+    setRatingsError("");
+
+    const sum = ratings.reduce((acc, rating) => acc + parseInt(rating, 10), 0);
+    const avg = Math.floor(sum / ratings.length); // Average without fractions
+    setAveragePerformanceRating(avg);
+
+    setIsRatingsDialogOpen(false);
+    processSummarization(avg); // Proceed to summarization with the average rating
+  };
+
+  const handleRatingChange = (year, value) => {
+    setPerformanceRatings(prev => ({ ...prev, [year]: value }));
+    if (ratingsError) setRatingsError(""); // Clear error on change
+  };
 
   // Handle redirect to specified target
-  const handleRedirect = (target) => {
+  const handleRedirect = (target, navigationState = null) => { // Renamed dataToPass for clarity
     setRedirectTarget(target);
-    setErrorDialogOpen(false);
+    if (isRatingsDialogOpen) setIsRatingsDialogOpen(false);
+    if (errorDialogOpen) setErrorDialogOpen(false);
+
     setRedirectDialogOpen(true);
     setTimeout(() => {
-      setRedirectDialogOpen(false);
-      navigate(target);
+      // No longer setting redirectDialogOpen to false here for the successful navigation path.
+      // The dialog will unmount with the component upon navigation.
+      // Check if navigating to projects summary and if there's no valid project data to pass
+      if (target === "/build-my-resume/projects-summary") {
+        const currentProjectsData = navigationState?.projectsData || projectsData; // Use passed data or component's
+        if (!currentProjectsData || !currentProjectsData.length) {
+            setErrorDialogOpen(true); 
+            setRedirectDialogOpen(false); // Explicitly hide redirect dialog if an error occurs and we don't navigate
+            return; // Prevent navigation if no project data
+        }
+      }
+      navigate(target, { state: navigationState }); // Pass the full state object
     }, 2000);
   };
 
@@ -286,6 +385,65 @@ function Summarize() {
     </Dialog>
   );
 
+  // Ratings Dialog
+  const RatingsDialog = () => (
+    <Dialog
+      open={isRatingsDialogOpen}
+      disableEscapeKeyDown
+      PaperProps={{ sx: { borderRadius: 2, minWidth: '450px', p: 1 } }}
+    >
+      <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
+        Annual Performance Ratings
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2, textAlign: 'center' }}>
+          Please provide your performance ratings for the last three years (5 being the highest).
+        </DialogContentText>
+        <Grid container spacing={2} direction="column" alignItems="center">
+          {ratingYears.map(year => (
+            <Grid item xs={12} sm={10} md={8} key={year} sx={{width: '100%'}}>
+              <Form.Item label={`Rating for ${year}:`} style={{ marginBottom: '8px', width: '100%' }}>
+                 <AntdSelect
+                    placeholder="Select Rating"
+                    value={performanceRatings[year]}
+                    onChange={(value) => handleRatingChange(year, value)}
+                    // Attempt to attach the dropdown to the DialogContent, 
+                    // falling back to parentElement if DialogContent is not found up the tree.
+                    // This can help avoid issues if the immediate parent is part of a resize loop.
+                    getPopupContainer={triggerNode => triggerNode.closest('.MuiDialogContent-root') || triggerNode.parentElement}
+                    style={{ width: '100%' }}
+                  >
+                    {[1, 2, 3, 4, 5].map(r => <AntdSelect.Option key={r} value={r}>{r}</AntdSelect.Option>)}
+                  </AntdSelect>
+              </Form.Item>
+            </Grid>
+          ))}
+        </Grid>
+        {ratingsError && (
+          <Typography color="error" sx={{ textAlign: 'center', mt: 1 }}>
+            {ratingsError}
+          </Typography>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ justifyContent: 'center', pb: 2, pt:1, gap: 2 }}>
+        <Button 
+            variant="outlined" 
+            onClick={() => handleRedirect(
+                "/build-my-resume/projects-summary", 
+                { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+            )}
+        >
+            Back to Projects
+        </Button>
+        <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleRatingsSubmit}>
+          Submit Ratings & Summarize
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
   // Error Dialog
   const ErrorDialog = () => (
     <Dialog
@@ -319,7 +477,10 @@ function Summarize() {
         <Button 
           variant="outlined" 
           color="primary" 
-          onClick={() => handleRedirect("/projects-summary")}
+          onClick={() => handleRedirect(
+            "/build-my-resume/projects-summary", 
+            { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+          )}
           sx={{ minWidth: '140px' }}
         >
           Edit Projects
@@ -327,7 +488,7 @@ function Summarize() {
         <Button 
           variant="contained" 
           color="primary" 
-          onClick={() => handleRedirect("/")}
+          onClick={() => handleRedirect("/", null)}
           sx={{ minWidth: '140px' }}
         >
           Main Menu
@@ -363,21 +524,27 @@ function Summarize() {
 
   if (isLoading) {
     return (
+      // This section is now primarily for when processSummarization is running
       <>
-        <ProcessingDialog />
+        {/* Show processing dialog if it's explicitly set for summarization */}
+        {processingDialogOpen && <ProcessingDialog />} 
+        {/* The main circular progress for the page content */}
         <Box sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 100px)', p:3}}>
           <CircularProgress size={60} />
-          <Typography sx={{mt: 2, color: 'text.secondary', fontSize: '1.1rem'}}>Generating candidate summary...</Typography>
+          <Typography sx={{mt: 2, color: 'text.secondary', fontSize: '1.1rem'}}>Generating your profile summary...</Typography>
         </Box>
       </>
     );
   }
 
-  if (errorDialogOpen || redirectDialogOpen) {
+  // If any dialog (Ratings, Error, or Redirect) should be open, render them.
+  if (isRatingsDialogOpen || errorDialogOpen || redirectDialogOpen) {
+    // If ratings dialog was meant to be open but an error occurred before it, ensure it's not lost
     return (
       <>
-        <ErrorDialog />
-        <RedirectDialog />
+        {isRatingsDialogOpen && <RatingsDialog />}
+        {errorDialogOpen && <ErrorDialog />} 
+        {redirectDialogOpen && <RedirectDialog />} 
       </>
     );
   }
@@ -408,7 +575,7 @@ function Summarize() {
       </Typography>
 
       <Form layout="vertical">
-        {/* Summary Output */}
+        {/* Professional Summary Output */}
         <Form.Item 
           label={
             <span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>
@@ -458,7 +625,175 @@ function Summarize() {
             />
           </Card>
         </Form.Item>
+
+        {/* Detailed Report Sections */}
+        {summaryObject && !summaryObject.error && (
+          <>
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Years of Experience</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9", display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{
+                    color: summaryObject.experience > 0 ? "#1a237e" : "#546e7a", // Darker blue for value, grey for "Not specified"
+                    fontWeight: "bold", 
+                    fontSize: "16px",
+                    fontFamily: "'Roboto Mono', monospace", // A more "data-like" font
+                  }}
+                >
+                  {summaryObject.experience > 0 ? 
+                    `${summaryObject.experience}${summaryObject.experience === 1 ? " year" : " years"}` : 
+                    "Not specified."
+                  }
+                  {summaryObject.experience > 0 && <span style={{fontWeight: 'normal', color: '#333'}}> (from experience summary)</span>}
+                </Typography>
+              </Card>
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Management/Leadership Score</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9", display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{
+                    color: "#1a237e", 
+                    fontWeight: "bold", 
+                    fontSize: "16px",
+                    fontFamily: "'Roboto Mono', monospace",
+                    mr: 1 
+                  }}
+                >
+                  {summaryObject.managementScore !== undefined ? summaryObject.managementScore : "N/A"}
+                </Typography>
+                <Typography sx={{color: "#333", fontSize: "15px", flexGrow: 1}}>
+                  (based on keywords like lead, manage, etc.)
+                </Typography>
+                <Tooltip title={
+                  "Score based on management/leadership keywords (e.g., lead, manage, team lead, strategy).\n" +
+                  "0-2: Indicates some exposure or mention of leadership tasks.\n" +
+                  "3-4: Suggests moderate experience in leading tasks or small teams.\n" +
+                  "5+: Points to significant leadership or management responsibilities."}>
+                  <IconButton size="small" sx={{ ml: 'auto', color: '#1976d2' }}>
+                    <InfoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Card>
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Technical Role Score</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9", display: 'flex', alignItems: 'center' }}>
+                <Typography sx={{
+                    color: "#1a237e", 
+                    fontWeight: "bold", 
+                    fontSize: "16px",
+                    fontFamily: "'Roboto Mono', monospace",
+                    mr: 1 
+                  }}
+                >
+                  {summaryObject.techRoleScore !== undefined ? summaryObject.techRoleScore : "N/A"}
+                </Typography>
+                <Typography sx={{color: "#333", fontSize: "15px", flexGrow: 1}}>
+                  (based on keywords like engineer, developer, architect, etc.)
+                </Typography>
+                <Tooltip title={
+                  "Score based on technical role keywords (e.g., engineer, developer, architect, analyst).\n" +
+                  "0-2: Basic technical involvement mentioned.\n" +
+                  "3-5: Solid technical contributions and role identification.\n" +
+                  "6+: Deep and broad technical expertise evident through keyword usage."}>
+                  <IconButton size="small" sx={{ ml: 'auto', color: '#1976d2' }}>
+                    <InfoOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Card>
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Key Technical Skills</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9" }}>
+                <Typography sx={{
+                    color: "#1a237e", 
+                    fontSize: "15px", 
+                    fontFamily: "'Roboto Mono', monospace",
+                    lineHeight: 1.6
+                  }}
+                >
+                  {summaryObject.skills?.join(', ') || "Not specified."}
+                </Typography>
+              </Card>
+            </Form.Item>
+
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Key Project Highlights</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9" }}>
+                {summaryObject.keyTopics?.length > 0 ? (
+                  <ul style={{ margin: 0, paddingLeft: '20px', color: "#1a237e", fontSize: "15px", fontFamily: "'Roboto Mono', monospace", lineHeight: 1.6 }}>
+                    {summaryObject.keyTopics.map((topic, index) => <li key={index}>{topic}</li>)}
+                  </ul>
+                ) : (
+                  <Typography sx={{color: "#333", fontSize: "15px"}}>Not specified.</Typography>
+                )}
+              </Card>
+            </Form.Item>
+
+            {averagePerformanceRating !== null && (
+                <Form.Item
+                  label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Performance Insight</span>}
+                >
+                  <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e8eaf6", border: "1px solid #9fa8da" }}>
+                    <Typography sx={{color: "#303f9f", fontSize: "15px"}}>
+                      Average performance rating (last 3 years):{' '}
+                      <Typography component="span" sx={{ 
+                          fontWeight: "bold", 
+                          fontSize: "16px", 
+                          fontFamily: "'Roboto Mono', monospace",
+                          color: "#1a237e"
+                        }}>{averagePerformanceRating} out of 5</Typography>.
+                      This rating has been considered in the role recommendation.
+                    </Typography>
+                  </Card>
+                </Form.Item>
+            )}
+
+            <Form.Item
+              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Resume Improvement Suggestions</span>}
+            >
+              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#fff3e0", border: "1px solid #ffcc80" }}>
+                <Typography sx={{color: "#e65100", fontSize: "15px"}}>
+                  Consider the following to enhance your resume:
+                </Typography>
+                <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', color: "#e65100", fontSize: "15px" }}>
+                    <li>Ensure all project descriptions clearly state your specific contributions and quantifiable achievements.</li>
+                    <li>Tailor your summary to the specific job you are applying for, highlighting the most relevant skills.</li>
+                    <li>Double-check for consistency in dates and project details.</li>
+                </ul>
+              </Card>
+            </Form.Item>
+          </>
+        )}
       </Form>
+      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
+        <Button 
+          variant="outlined" 
+          color="primary" 
+          onClick={() => handleRedirect(
+            "/build-my-resume/projects-summary", 
+            { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+          )}
+          sx={{ minWidth: '160px' }}
+        >
+          Edit Projects
+        </Button>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={() => handleRedirect("/", null)}
+          sx={{ minWidth: '160px' }}
+        >
+          Back to Main Menu
+        </Button>
+      </Box>
     </Box>
   );
 }
