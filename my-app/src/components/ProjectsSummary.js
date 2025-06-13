@@ -708,7 +708,11 @@ const ProjectFormItem = React.memo(({
           label={endDateLabel}
           value={project.endDate}
           onChange={(value) => onDateChange(index, "endDate", value)}
-          minDate={project.startDate ? dayjs(project.startDate).add(1, 'day') : undefined}
+          minDate={
+            project.startDate && dayjs.isDayjs(project.startDate) && project.startDate.isValid()
+              ? project.startDate.add(1, 'day')
+              : undefined
+          }
           disabled={!project.startDate}
           renderInput={(params) => (
             <TextField
@@ -739,7 +743,6 @@ const ProjectFormItem = React.memo(({
 function ProjectsSummary() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialProjectsFromState = location.state?.projectsData;
   const overallExperienceYears = location.state?.overallExperienceYears ? parseInt(location.state.overallExperienceYears, 10) : 0;
 
   // State for dialog popups
@@ -752,15 +755,17 @@ function ProjectsSummary() {
 
   // Initialize projects state, auto-populating role for the first project
   const [projects, setProjects] = useState(() => {
-    if (initialProjectsFromState && initialProjectsFromState.length > 0) {
+    const dataFromState = location.state?.projectsData; // Use location.state directly
+    if (dataFromState && dataFromState.length > 0) {
       // Ensure dates are Day.js objects if they are stored as strings
-      return initialProjectsFromState.map(p => ({
-        ...p,
+      return dataFromState.map(p => ({
+        ...initialProjectState, // Apply defaults first
+        ...p,                   // Then override with actual data from p
         startDate: p.startDate ? (dayjs.isDayjs(p.startDate) ? p.startDate : dayjs(p.startDate)) : null,
         endDate: p.endDate ? (dayjs.isDayjs(p.endDate) ? p.endDate : dayjs(p.endDate)) : null,
-        // Reset generation flags if needed, or ensure they are passed correctly
-        isGeneratingDescription: p.isGeneratingDescription || false,
-        isGeneratingRole: p.isGeneratingRole || false,
+        // isGeneratingDescription and isGeneratingRole are handled by spreading initialProjectState then p
+        // Ensure dateErrorFeedback is also initialized properly if not present in p
+        dateErrorFeedback: p.dateErrorFeedback || { ...initialProjectState.dateErrorFeedback },
       }));
     }
     return [{ ...initialProjectState }]; // Default initialization
@@ -891,48 +896,50 @@ function ProjectsSummary() {
   }, [projects, checkPrecedingFieldsAndShowDialog]);
 
   // Handle Autocomplete changes for a specific project
-  const handleAutocompleteChange = useCallback((index, name, value) => {
-    const updatedProjects = [...projects];
+// Handle Autocomplete changes for a specific project
+const handleAutocompleteChange = useCallback((index, name, value) => {
+  const updatedProjects = [...projects];
 
-    if (checkPrecedingFieldsAndShowDialog(index, name)) {
-      return; // Stop processing this input change if a preceding field is missing
-    }
-    updatedProjects[index][name] = value; // Value is already a comma-separated string
+  if (checkPrecedingFieldsAndShowDialog(index, name)) {
+    return; // Stop processing this input change if a preceding field is missing
+  }
+  updatedProjects[index][name] = value; // Value is already a comma-separated string
 
-    // Add any new values to the respective options arrays
-    if (name === "programmingLanguages") {
-      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
-      const newValues = valuesArray.filter(v => !dynamicProgrammingLanguageOptions.includes(v));
-      if (newValues.length > 0) {
-        setDynamicProgrammingLanguageOptions(prev => [...prev, ...newValues]);
-      }
-    } else if (name === "devOpsTools") {
-      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
-      const newValues = valuesArray.filter(v => !dynamicDevOpsToolsOptions.includes(v));
-      if (newValues.length > 0) {
-        setDynamicDevOpsToolsOptions(prev => [...prev, ...newValues]);
-      }
-    } else if (name === "versionController") {
-      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
-      const newValues = valuesArray.filter(v => !dynamicVersionControllerOptions.includes(v));
-      if (newValues.length > 0) {
-        setDynamicVersionControllerOptions(prev => [...prev, ...newValues]);
-      }
-    } else if (name === "databases") {
-      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
-      const newValues = valuesArray.filter(v => !dynamicDatabaseOptions.includes(v));
-      if (newValues.length > 0) {
-        setDynamicDatabaseOptions(prev => [...prev, ...newValues]);
-      }
-    } else if (name === "cloudPlatform") { // Handle cloudPlatform
-      const valuesArray = value.split(',').map(v => v.trim()).filter(v => v);
-      const newValues = valuesArray.filter(v => !dynamicCloudPlatformOptions.includes(v));
-      if (newValues.length > 0) {
-        setDynamicCloudPlatformOptions(prev => [...prev, ...newValues]);
-      }
+  // Add any new values to the respective options arrays
+  if (name === "programmingLanguages") {
+    const langValuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+    const newLangValues = langValuesArray.filter(v => !dynamicProgrammingLanguageOptions.includes(v));
+    if (newLangValues.length > 0) {
+      setDynamicProgrammingLanguageOptions(prev => [...prev, ...newLangValues]);
     }
-    setProjects(updatedProjects);
-  }, [projects, dynamicProgrammingLanguageOptions, dynamicDevOpsToolsOptions, dynamicVersionControllerOptions, dynamicDatabaseOptions, dynamicCloudPlatformOptions, checkPrecedingFieldsAndShowDialog]);
+  } else if (name === "devOpsTools") {
+    const devOpsValuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+    const newDevOpsValues = devOpsValuesArray.filter(v => !dynamicDevOpsToolsOptions.includes(v));
+    if (newDevOpsValues.length > 0) {
+      setDynamicDevOpsToolsOptions(prev => [...prev, ...newDevOpsValues]);
+    }
+  } else if (name === "versionController") {
+    const vcValuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+    const newVcValues = vcValuesArray.filter(v => !dynamicVersionControllerOptions.includes(v));
+    if (newVcValues.length > 0) {
+      setDynamicVersionControllerOptions(prev => [...prev, ...newVcValues]);
+    }
+  } else if (name === "databases") {
+    const dbValuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+    const newDbValues = dbValuesArray.filter(v => !dynamicDatabaseOptions.includes(v));
+    if (newDbValues.length > 0) {
+      setDynamicDatabaseOptions(prev => [...prev, ...newDbValues]);
+    }
+  } else if (name === "cloudPlatform") {
+    const cpValuesArray = value.split(',').map(v => v.trim()).filter(v => v);
+    const newCpValues = cpValuesArray.filter(v => !dynamicCloudPlatformOptions.includes(v));
+    if (newCpValues.length > 0) {
+      setDynamicCloudPlatformOptions(prev => [...prev, ...newCpValues]);
+    }
+  }
+  
+  setProjects(updatedProjects);
+}, [projects, checkPrecedingFieldsAndShowDialog, dynamicProgrammingLanguageOptions, dynamicDevOpsToolsOptions, dynamicVersionControllerOptions, dynamicDatabaseOptions, dynamicCloudPlatformOptions]);
 
   // Check if date already exists in other projects
   const isDateDuplicate = useCallback((date, fieldName, currentIndex) => {
@@ -1069,11 +1076,11 @@ function ProjectsSummary() {
     const lastProject = projects[projects.length - 1];
     // Check if the last project has required fields filled and no date errors
     const hasRequiredFields =
-      lastProject.title.trim() &&
-      lastProject.description.trim() &&
-      lastProject.role.trim() &&
-      lastProject.programmingLanguages.trim() &&
-      lastProject.versionController.trim() &&
+      (lastProject.title || "").trim() &&
+      (lastProject.description || "").trim() &&
+      (lastProject.role || "").trim() &&
+      (lastProject.programmingLanguages || "").trim() &&
+      (lastProject.versionController || "").trim() &&
       (lastProject.versionController.includes("Legacy-Tools") ? lastProject.legacyToolsInfo.trim() : true) &&
       lastProject.databases.trim() &&
       lastProject.startDate; // Start date is required for any project. Cloud platform is optional for now.
@@ -1097,12 +1104,12 @@ function ProjectsSummary() {
     for (let i = 0; i < projects.length; i++) {
       const project = projects[i];
       const missingFields = [];
-
-      if (!project.title.trim()) missingFields.push("Title");
-      if (!project.description.trim()) missingFields.push("Description");
-      if (!project.role.trim()) missingFields.push("Role/Contribution");
-      if (!project.programmingLanguages.trim()) missingFields.push("Programming Languages");
-      if (!project.versionController.trim()) missingFields.push("Version Controller");
+      
+      if (!(project.title || "").trim()) missingFields.push("Title");
+      if (!(project.description || "").trim()) missingFields.push("Description");
+      if (!(project.role || "").trim()) missingFields.push("Role/Contribution");
+      if (!(project.programmingLanguages || "").trim()) missingFields.push("Programming Languages");
+      if (!(project.versionController || "").trim()) missingFields.push("Version Controller");
       if (project.versionController.includes("Legacy-Tools") && !project.legacyToolsInfo.trim()) {
         missingFields.push("Legacy Tools Information");
       }
