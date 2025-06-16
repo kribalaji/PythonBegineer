@@ -307,6 +307,39 @@ const generateProjectRole = (overallExpYears, projectTitle = "this project") => 
   return roleDescription.replace(/{projectTitle}/g, refinedProjectTitle);
 };
 
+// Helper function to safely rehydrate date values from location.state or other sources
+const rehydrateDate = (valueFromState) => {
+  if (!valueFromState) {
+    return null;
+  }
+
+  if (typeof valueFromState === 'object' && valueFromState !== null) {
+    // Check if it's a plain object masquerading as a Dayjs object but missing methods.
+    // Such objects might be created by structured cloning during state transfer.
+    if (valueFromState.hasOwnProperty('$isDayjsObject') && 
+        valueFromState.$isDayjsObject === true && 
+        typeof valueFromState.clone !== 'function') {
+      
+      // It's a problematic object. Try to reconstruct from its internal $d property if available.
+      if (valueFromState.hasOwnProperty('$d')) {
+        // Ensure $d itself is a valid type for the dayjs constructor
+        const rawDate = valueFromState.$d;
+        if (rawDate instanceof Date || typeof rawDate === 'string' || typeof rawDate === 'number' || dayjs.isDayjs(rawDate)) {
+            return dayjs(rawDate);
+        }
+        // If $d is also problematic or not a reconstructable type, this path might still have issues,
+        // but it's an edge case. The main goal is to catch $isDayjsObject=true without methods.
+      }
+      // If no $d, or $d was problematic, attempting dayjs(valueFromState) below is a last resort for this object,
+      // though it's likely to fail if .clone is missing. This indicates a deeper serialization issue.
+    }
+    // If it's a true Dayjs object (has .clone), or not a Dayjs-like object, dayjs() will handle it.
+  }
+  // For all other cases (true Dayjs instances, strings, numbers, native Date objects),
+  // let dayjs() handle it. It will clone true Dayjs instances or parse others.
+  return dayjs(valueFromState);
+};
+
 const ProjectFormItem = React.memo(({
   project,
   index,
@@ -756,19 +789,28 @@ function ProjectsSummary() {
   // Initialize projects state, auto-populating role for the first project
   const [projects, setProjects] = useState(() => {
     const dataFromState = location.state?.projectsData; // Use location.state directly
-    if (dataFromState && dataFromState.length > 0) {
-      // Ensure dates are Day.js objects if they are stored as strings
-      return dataFromState.map(p => ({
-        ...initialProjectState, // Apply defaults first
-        ...p,                   // Then override with actual data from p
-        startDate: p.startDate ? (dayjs.isDayjs(p.startDate) ? p.startDate : dayjs(p.startDate)) : null,
-        endDate: p.endDate ? (dayjs.isDayjs(p.endDate) ? p.endDate : dayjs(p.endDate)) : null,
-        // isGeneratingDescription and isGeneratingRole are handled by spreading initialProjectState then p
-        // Ensure dateErrorFeedback is also initialized properly if not present in p
-        dateErrorFeedback: p.dateErrorFeedback || { ...initialProjectState.dateErrorFeedback },
-      }));
+    if (dataFromState && Array.isArray(dataFromState) && dataFromState.length > 0) {
+      return dataFromState.map(p_from_state => {
+        // Ensure p_from_state is an object before spreading
+        const projectItem = (typeof p_from_state === 'object' && p_from_state !== null) ? p_from_state : {};
+        return {
+          ...initialProjectState, // Apply defaults first
+          ...projectItem,         // Then override with actual data from projectItem
+          // Always re-construct dayjs objects from projectItem data to ensure they are valid instances
+          startDate: rehydrateDate(projectItem.startDate),
+          endDate: rehydrateDate(projectItem.endDate),
+          // Ensure dateErrorFeedback is a fresh, distinct object upon restoration
+          dateErrorFeedback: (projectItem.dateErrorFeedback && typeof projectItem.dateErrorFeedback === 'object')
+                             ? { ...projectItem.dateErrorFeedback } // Clone if it exists in the state being restored
+                             : { ...initialProjectState.dateErrorFeedback }, // Else, use a fresh default clone
+        };
+      });
     }
-    return [{ ...initialProjectState }]; // Default initialization
+    // Default initialization for a brand new form or if no projectsData passed
+    return [{
+        ...initialProjectState,
+        dateErrorFeedback: { ...initialProjectState.dateErrorFeedback } // Ensure fresh copy
+    }];
   });
 
   // State to manage dynamic options lists
@@ -1050,7 +1092,10 @@ const handleAutocompleteChange = useCallback((index, name, value) => {
   }, [projects, isDateDuplicate, dialogState.open, dialogState.title, dialogState.severity, checkPrecedingFieldsAndShowDialog]);
 
   const addNextProject = () => {
-    const newProject = { ...initialProjectState };
+    const newProject = {
+        ...initialProjectState,
+        dateErrorFeedback: { ...initialProjectState.dateErrorFeedback } // Ensure fresh copy
+    };
     setProjects([...projects, newProject]);
   };
 
@@ -1058,7 +1103,10 @@ const handleAutocompleteChange = useCallback((index, name, value) => {
     if (projects.length > 1) {
       setProjects(prevProjects => prevProjects.filter((_, index) => index !== indexToRemove));
     } else if (projects.length === 1 && indexToRemove === 0) {
-      setProjects([{ ...initialProjectState }]);
+      setProjects([{
+          ...initialProjectState,
+          dateErrorFeedback: { ...initialProjectState.dateErrorFeedback } // Ensure fresh copy
+      }]);
     }
      // Clear dialog if it was showing an error/warning that might no longer be relevant
      // This is a bit broad, but safer than leaving an irrelevant dialog open.

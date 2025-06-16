@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Typography, Form, Input, Select as AntdSelect } from "antd"; // Added AntdSelect
 import { useLocation, useNavigate} from "react-router-dom";
 import nlp from "compromise";
@@ -109,43 +109,86 @@ const extractKeyTopics = (sentences) => {
 };
 
 // Helper function to determine the best role
-const determineBestRole = (techSkills, managementScore, text) => {
+const determineBestRole = (techSkills, managementScore, text, experienceYears) => {
   const lowerText = text.toLowerCase();
-  
-  // Check for specialized technical roles
-  if (techSkills.some(skill => ["AWS", "Azure", "GCP", "EC2", "S3", "Lambda", "CloudFormation"].includes(skill))) {
-    return managementScore > 3 ? "Cloud Solutions Architect" : "Cloud Engineer";
-  }
-  
-  if (techSkills.some(skill => ["Machine Learning", "AI", "Deep Learning", "TensorFlow", "PyTorch", "NLP", "Data Mining"].includes(skill))) {
-    return managementScore > 3 ? "Data Science Manager" : "Data Scientist";
-  }
-  
-  if (techSkills.some(skill => ["React", "Angular", "Vue.js", "JavaScript", "TypeScript", "HTML", "CSS"].includes(skill))) {
-    return managementScore > 3 ? "Frontend Engineering Manager" : "Frontend Developer";
-  }
-  
-  if (techSkills.some(skill => ["Java", "Spring", "Node.js", "Express.js", "Django", "Flask", "ASP.NET"].includes(skill))) {
-    return managementScore > 3 ? "Backend Engineering Manager" : "Backend Developer";
-  }
-  
-  if (techSkills.some(skill => ["Docker", "Kubernetes", "Jenkins", "GitLab CI", "GitHub Actions", "Terraform", "Ansible"].includes(skill))) {
-    return managementScore > 3 ? "DevOps Manager" : "DevOps Engineer";
-  }
-  
-  // Check for management roles
-  if (managementScore > 4) {
-    if (lowerText.includes("product")) {
-      return "Product Manager";
-    } else if (lowerText.includes("project")) {
-      return "Project Manager";
-    } else {
-      return "Engineering Manager";
+
+  // Helper to determine role based on experience tiers for specialized roles
+  // titles = { junior, regular, senior, lead, principal, manager }
+  const getTieredRole = (titles) => {
+    if (experienceYears > 10) { // 11+ years
+        if (titles.manager && managementScore > 4) return titles.manager;
+        return titles.principal || `Principal ${titles.regular}`;
     }
+    if (experienceYears > 8) { // 9-10 years
+        if (titles.manager && managementScore > 4) return titles.manager; // Early manager track
+        if (titles.lead && managementScore > 3) return titles.lead;
+        // If no specific lead title, and principal exists, prefer principal. Otherwise, default to senior.
+        return titles.principal || titles.senior || `Senior ${titles.regular}`;
+    }
+    if (experienceYears > 5) { // 6-8 years
+        return titles.senior || `Senior ${titles.regular}`;
+    }
+    if (experienceYears > 2) { // 3-5 years
+        return titles.regular;
+    }
+    // 0-2 years
+    return titles.junior || `Junior ${titles.regular}`;
+  };
+
+  // Specialized roles based on tech skills and experience
+  if (techSkills.some(skill => ["AWS", "Azure", "GCP", "EC2", "S3", "Lambda", "CloudFormation"].includes(skill))) {
+    return getTieredRole({
+      junior: "Junior Cloud Engineer", regular: "Cloud Engineer", senior: "Senior Cloud Engineer",
+      lead: "Lead Cloud Engineer", principal: "Principal Cloud Engineer", manager: "Cloud Solutions Architect"
+    });
+  }
+
+  if (techSkills.some(skill => ["Machine Learning", "AI", "Deep Learning", "TensorFlow", "PyTorch", "NLP", "Data Mining"].includes(skill))) {
+    return getTieredRole({
+      junior: "Junior Data Scientist / Data Analyst", regular: "Data Scientist", senior: "Senior Data Scientist",
+      lead: "Lead Data Scientist", principal: "Principal Data Scientist", manager: "Data Science Manager"
+    });
+  }
+
+  if (techSkills.some(skill => ["React", "Angular", "Vue.js", "JavaScript", "TypeScript", "HTML", "CSS"].includes(skill))) {
+    return getTieredRole({
+      junior: "Junior Frontend Developer", regular: "Frontend Developer", senior: "Senior Frontend Developer",
+      lead: "Lead Frontend Developer", principal: "Principal Frontend Engineer", manager: "Frontend Engineering Manager"
+    });
+  }
+
+  if (techSkills.some(skill => ["Java", "Spring", "Node.js", "Express.js", "Django", "Flask", "ASP.NET"].includes(skill))) {
+    return getTieredRole({
+      junior: "Junior Backend Developer", regular: "Backend Developer", senior: "Senior Backend Developer",
+      lead: "Lead Backend Developer", principal: "Principal Backend Engineer", manager: "Backend Engineering Manager"
+    });
+  }
+
+  if (techSkills.some(skill => ["Docker", "Kubernetes", "Jenkins", "GitLab CI", "GitHub Actions", "Terraform", "Ansible"].includes(skill))) {
+    return getTieredRole({
+      junior: "Junior DevOps Engineer", regular: "DevOps Engineer", senior: "Senior DevOps Engineer",
+      lead: "Lead DevOps Engineer", principal: "Principal DevOps Engineer", manager: "DevOps Manager"
+    });
+  }
+
+  // General Management roles if no specific tech track matched and high experience/score
+  if (experienceYears > 10 && managementScore > 4) { // 11+ years
+     if (lowerText.includes("product")) return "Product Manager";
+     if (lowerText.includes("project")) return "Program Manager";
+     return "Engineering Manager";
+  }
+  if (experienceYears > 8 && managementScore > 3) { // 9-10 years with some management
+     if (lowerText.includes("product")) return "Associate Product Manager"; // Or similar mid-level product role
+     if (lowerText.includes("project")) return "Project Lead";
+     return "Technical Lead"; // General technical leadership
   }
   
-  // Default roles based on management score
-  return managementScore > 3 ? "Technical Team Lead" : "Software Developer";
+  // Fallback to general Software Engineering roles, strictly tiered by experience
+  if (experienceYears > 10) return managementScore > 3 ? "Technical Lead / Architect" : "Principal Software Engineer";
+  if (experienceYears > 8) return managementScore > 2 ? "Technical Lead" : "Senior Software Engineer"; // 9-10 years
+  if (experienceYears > 5) return "Senior Software Engineer"; // 6-8 years
+  if (experienceYears > 2) return "Software Engineer"; // 3-5 years
+  return "Junior Software Engineer"; // 0-2 years
 };
 
 // Enhanced NLP function for better summarization
@@ -175,7 +218,7 @@ const generateInitialSummaryAndRole = (concatenatedDetails, overallExperienceYea
   const techRoleScore = calculateTechRoleScore(concatenatedDetails);
 
   // Generate a more comprehensive summary
-  let summarizedProfile = "";
+  let summarizedProfile = ""; // Initialize summarizedProfile
   
   // Add experience summary
   if (experienceYears > 0) {
@@ -204,7 +247,7 @@ const generateInitialSummaryAndRole = (concatenatedDetails, overallExperienceYea
   }
   
   // Determine the most suitable role
-  const suggestedRole = determineBestRole(techSkills, managementScore, concatenatedDetails);
+  const suggestedRole = determineBestRole(techSkills, managementScore, concatenatedDetails, experienceYears); // Pass experienceYears
   
   return {
     summaryObject: {
@@ -265,27 +308,15 @@ function Summarize() {
   const [averagePerformanceRating, setAveragePerformanceRating] = useState(null);
   const [ratingsError, setRatingsError] = useState("");
 
-  useEffect(() => {
-    // Initially, we are not "loading" a summary, but setting up for ratings or showing an error.
-    setIsLoading(false); 
-    setProcessingDialogOpen(false); // Ensure this is false initially
+  // Determine how many years of ratings to ask for
+  const getRatingYearsToAsk = useCallback((experience) => {
+    if (experience < 1) return 0; // No ratings for less than 1 year
+    if (experience >= 1 && experience < 2) return 1; // 1 year rating
+    if (experience >= 2 && experience < 3) return 2; // 2 years rating
+    return 3; // 3 or more years
+  }, []); // Empty dependency array means this function is memoized and stable
 
-    // Calculate last three years for ratings
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear - 1, currentYear - 2, currentYear - 3];
-    setRatingYears(years);
-    setPerformanceRatings(years.reduce((acc, year) => ({ ...acc, [year]: null }), {}));
-    
-    // Open ratings dialog first
-    if (projectsData && projectsData.length > 0) {
-      setIsRatingsDialogOpen(true);
-    } else {
-      // No project data, show error
-      setErrorDialogOpen(true);
-    }
-  }, [projectsData, routeOverallExperience]); // Add routeOverallExperience
-
-  const processSummarization = (avgRating) => {
+  const processSummarization = useCallback((avgRating) => {
     setIsRatingsDialogOpen(false); // Ensure ratings dialog is closed
     setProcessingDialogOpen(true); // Now show processing for actual summarization
     setIsLoading(true); // Set loading true for the summary generation phase
@@ -308,23 +339,56 @@ function Summarize() {
         setProcessingDialogOpen(false); // Stop processing dialog
         setIsLoading(false); // Stop main loading indicator
     }, 1500);
-  };
+  }, [projectsData, routeOverallExperience]); // Dependencies for processSummarization
 
-  const handleRatingsSubmit = () => {
-    const ratings = Object.values(performanceRatings);
-    if (ratings.some(r => r === null || r === undefined || r === "")) {
-      setRatingsError("Please provide ratings for all three years.");
+  useEffect(() => {
+    // Initially, we are not "loading" a summary, but setting up for ratings or showing an error.
+    setIsLoading(false); 
+    setProcessingDialogOpen(false); // Ensure this is false initially
+
+    if (projectsData && projectsData.length > 0) {
+      const numRatingYearsToAsk = getRatingYearsToAsk(routeOverallExperience);
+      if (numRatingYearsToAsk === 0) {
+        // If no ratings needed (e.g., < 1 year exp), proceed directly to summarization
+        setAveragePerformanceRating(null); // Or a default if preferred
+        processSummarization(null); 
+      } else {
+        const currentYear = new Date().getFullYear();
+        const yearsToRate = [];
+        for (let i = 0; i < numRatingYearsToAsk; i++) {
+          yearsToRate.push(currentYear - 1 - i);
+        }
+        setRatingYears(yearsToRate);
+        setPerformanceRatings(yearsToRate.reduce((acc, year) => ({ ...acc, [year]: null }), {}));
+        setIsRatingsDialogOpen(true);
+      }
+    } else {
+      // No project data, show error
+      setErrorDialogOpen(true);
+    }
+  }, [projectsData, routeOverallExperience, processSummarization, getRatingYearsToAsk]); 
+
+  const handleRatingsSubmit = useCallback(() => {
+    // Check if all *requested* years have ratings (ratings variable was unused)
+    if (ratingYears.some(year => performanceRatings[year] === null || performanceRatings[year] === undefined || performanceRatings[year] === "")) {
+      setRatingsError(`Please provide ratings for all ${ratingYears.length} year(s).`);
       return;
     }
     setRatingsError("");
 
-    const sum = ratings.reduce((acc, rating) => acc + parseInt(rating, 10), 0);
-    const avg = Math.floor(sum / ratings.length); // Average without fractions
+    let avg = null;
+    if (ratingYears.length > 0) {
+        const validRatings = ratingYears.map(year => parseInt(performanceRatings[year], 10)).filter(r => !isNaN(r));
+        if (validRatings.length > 0) {
+            const sum = validRatings.reduce((acc, rating) => acc + rating, 0);
+            avg = Math.floor(sum / validRatings.length); // Average without fractions
+        }
+    }
     setAveragePerformanceRating(avg);
 
     setIsRatingsDialogOpen(false);
     processSummarization(avg); // Proceed to summarization with the average rating
-  };
+  }, [performanceRatings, ratingYears, processSummarization]);
 
   const handleRatingChange = (year, value) => {
     setPerformanceRatings(prev => ({ ...prev, [year]: value }));
@@ -397,7 +461,7 @@ function Summarize() {
       </DialogTitle>
       <DialogContent>
         <DialogContentText sx={{ mb: 2, textAlign: 'center' }}>
-          Please provide your performance ratings for the last three years (5 being the highest).
+          Please provide your performance ratings for the last {ratingYears.length} year(s) (5 being the highest).
         </DialogContentText>
         <Grid container spacing={2} direction="column" alignItems="center">
           {ratingYears.map(year => (
@@ -743,7 +807,7 @@ function Summarize() {
                 >
                   <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e8eaf6", border: "1px solid #9fa8da" }}>
                     <Typography sx={{color: "#303f9f", fontSize: "15px"}}>
-                      Average performance rating (last 3 years):{' '}
+                      Average performance rating (last {ratingYears.length} year(s)):{' '}
                       <Typography component="span" sx={{ 
                           fontWeight: "bold", 
                           fontSize: "16px", 
