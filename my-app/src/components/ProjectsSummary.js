@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom"; // Added useLocation
 import { Typography, Button, Box, TextField, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, CircularProgress, Tooltip, InputAdornment, IconButton } from "@mui/material"; // Added InputAdornment, IconButton
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
@@ -777,6 +777,7 @@ function ProjectsSummary() {
   const navigate = useNavigate();
   const location = useLocation();
   const overallExperienceYears = location.state?.overallExperienceYears ? parseInt(location.state.overallExperienceYears, 10) : 0;
+  const codeAIExperienceFromPrevStep = location.state?.codeAIExperience || []; // Receive AI tools
 
   // State for dialog popups
   const [dialogState, setDialogState] = useState({
@@ -868,9 +869,6 @@ function ProjectsSummary() {
 
   // State for initial guidance dialog
   const [initialGuidanceOpen, setInitialGuidanceOpen] = useState(true);
-
-  useEffect(() => {
-  }, []); 
 
   const handleCloseInitialGuidance = () => {
     setInitialGuidanceOpen(false);
@@ -1302,7 +1300,7 @@ const handleAutocompleteChange = useCallback((index, name, value) => {
               }
               
               // If all checks pass, navigate
-              navigate("/summarize", { state: { projectsData: projects, overallExperience: overallExperienceYears } });
+              navigate("/summarize", { state: { projectsData: projects, overallExperience: overallExperienceYears, codeAIExperienceFromSummary: codeAIExperienceFromPrevStep } });
             }}
             sx={{ width: "50%", backgroundColor: "#3498db", '&:hover': { backgroundColor: "#2980b9" } }}
           >

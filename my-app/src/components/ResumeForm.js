@@ -77,7 +77,10 @@ function ResumeForm() {
   };
 
   const handleNext = () => {
-    navigate("/build-my-resume/experience-summary");
+    // Pass all relevant form data to the next step
+    navigate("/build-my-resume/experience-summary", { 
+      state: { resumeFormData: formData } 
+    });
   };
 
   // Check if the form is valid
@@ -89,6 +92,7 @@ function ResumeForm() {
     formData.state &&
     formData.city &&
     formData.practice && // Added practice validation
+    formData.suffix &&   // Ensure suffix is checked for validity
     !errors.firstName &&
     !errors.lastName &&
     !errors.mobileNumber;

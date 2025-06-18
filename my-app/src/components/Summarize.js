@@ -20,7 +20,10 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'; // Added for info icons
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import dayjs from 'dayjs';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from 'docx';
+import { QRCodeSVG } from 'qrcode.react'; 
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
 
 const { TextArea } = Input;
@@ -390,7 +393,10 @@ function Summarize() {
   const location = useLocation();
   const navigate = useNavigate();
   // Correctly get projectsData, which is an array of project objects
-  const { projectsData, overallExperience: routeOverallExperience, codeAIExperienceFromSummary } = location.state || { projectsData: [], overallExperience: 0, codeAIExperienceFromSummary: [] };
+  const { projectsData, overallExperience: routeOverallExperience, codeAIExperienceFromSummary,
+    firstName, lastName, mobileNumber // Extract name and mobile number
+  } = location.state || { projectsData: [], overallExperience: 0, codeAIExperienceFromSummary: [], firstName: "", lastName: "", mobileNumber: "" };
+
 
   const [summary, setSummary] = useState("");
   const [summaryObject, setSummaryObject] = useState(null); // To store the full summary object
@@ -398,7 +404,7 @@ function Summarize() {
   const [isLoading, setIsLoading] = useState(true);
   const [processingDialogOpen, setProcessingDialogOpen] = useState(true);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
-  const [redirectDialogOpen, setRedirectDialogOpen] = useState(false);
+  const [redirectDialogOpen, setRedirectDialogOpen] = useState(false); // For dialogs
   const [redirectTarget, setRedirectTarget] = useState("");
   
   // State for performance ratings
@@ -410,6 +416,7 @@ function Summarize() {
   const [skillsExperienceData, setSkillsExperienceData] = useState([]);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false); // State for download dialog
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false); // State for DOCX generation
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // State for PDF generation
   const [showSkillsChart, setShowSkillsChart] = useState(false);
 
   // Determine how many years of ratings to ask for
@@ -539,10 +546,30 @@ function Summarize() {
   const generateDocx = async () => {
     setIsGeneratingDocx(true);
     try {
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: [
+      const docChildren = []; // Array to hold all document elements
+
+      // Helper function to capture chart as base64 image
+      const captureChartAsImage = async (elementId) => {
+        const element = document.getElementById(elementId);
+        if (!element) {
+          console.warn(`Chart element with ID ${elementId} not found for DOCX export.`);
+          return null;
+        }
+        try {
+          const canvas = await html2canvas(element, {
+            logging: false, // To reduce console noise during capture
+            useCORS: true,  // Important if your charts use external resources like web fonts
+            scale: 3,       // Increased scale for better image resolution in DOCX
+          });
+          return canvas.toDataURL("image/png"); // Returns base64 string
+        } catch (error) {
+          console.error(`Error capturing chart ${elementId}:`, error);
+          return null;
+        }
+      };
+
+      // Add existing text content to docChildren
+      docChildren.push(
             new Paragraph({
               children: [new TextRun({ text: "Candidate Resume", bold: true, size: 32 })],
               heading: HeadingLevel.TITLE,
@@ -550,22 +577,22 @@ function Summarize() {
               spacing: { after: 200 },
             }),
 
-            new Paragraph({
-              children: [new TextRun({ text: "Recommended Role", bold: true, size: 28 })],
+        new Paragraph({
+              children: [new TextRun({ text: "Recommended Role", bold: true, size: 28, underline: {} })],
               heading: HeadingLevel.HEADING_1,
               spacing: { after: 100 },
             }),
             new Paragraph({ text: jobRole || "Not specified", spacing: { after: 200 } }),
 
-            new Paragraph({
-              children: [new TextRun({ text: "Professional Summary", bold: true, size: 28 })],
+        new Paragraph({
+              children: [new TextRun({ text: "Professional Summary", bold: true, size: 28, underline: {} })],
               heading: HeadingLevel.HEADING_1,
               spacing: { after: 100 },
             }),
             new Paragraph({ text: summary || "Not specified", spacing: { after: 200 } }),
 
-            new Paragraph({
-              children: [new TextRun({ text: "Key Information", bold: true, size: 28 })],
+        new Paragraph({
+              children: [new TextRun({ text: "Key Information", bold: true, size: 28, underline: {} })],
               heading: HeadingLevel.HEADING_1,
               spacing: { after: 100 },
             }),
@@ -584,14 +611,14 @@ function Summarize() {
               spacing: { after: 200 }
             }),
 
-            new Paragraph({
-              children: [new TextRun({ text: "Project Experience", bold: true, size: 28 })],
+        new Paragraph({
+              children: [new TextRun({ text: "Project Experience", bold: true, size: 28, underline: {} })],
               heading: HeadingLevel.HEADING_1,
               spacing: { after: 100 },
             }),
             ...(projectsData && projectsData.length > 0 ? projectsData.flatMap((project, index) => [
-              new Paragraph({
-                children: [new TextRun({ text: project.title || `Project ${index + 1}`, bold: true, size: 24 })],
+          new Paragraph({
+                children: [new TextRun({ text: project.title || `Project ${index + 1}`, bold: true, size: 24, underline: {} })],
                 heading: HeadingLevel.HEADING_2,
                 spacing: { after: 50, before: 150 },
               }),
@@ -628,11 +655,13 @@ function Summarize() {
                 ],
                 spacing: { after: 100 }
               }),
-            ]) : [new Paragraph({ text: "No project data available.", spacing: { after: 200 } })]),
+        ]) : [new Paragraph({ text: "No project data available.", spacing: { after: 200 } })])
+      );
 
-            ...(averagePerformanceRating !== null ? [
-              new Paragraph({
-                children: [new TextRun({ text: "Performance Insight", bold: true, size: 28 })],
+      if (averagePerformanceRating !== null) {
+        docChildren.push(
+          new Paragraph({
+                children: [new TextRun({ text: "Performance Insight", bold: true, size: 28, underline: {} })],
                 heading: HeadingLevel.HEADING_1,
                 spacing: { after: 100, before: 200 },
               }),
@@ -643,28 +672,175 @@ function Summarize() {
                 ],
                 spacing: { after: 200 }
               }),
-            ] : []),
-          ],
+        );
+      }
+
+      // --- Add Charts ---
+
+      // 1. Top Skills Experience Distribution (Pie Chart)
+      if (skillsExperienceData && skillsExperienceData.length > 0) {
+        const pieChartImageBase64 = await captureChartAsImage('pieChartContainer');
+        if (pieChartImageBase64) {
+          docChildren.push(
+            new Paragraph({
+              children: [new TextRun({ text: "Top Skills Experience Distribution", bold: true, size: 24, underline: {} })],
+              heading: HeadingLevel.HEADING_2,
+              spacing: { after: 100, before: 200 },
+            }),
+            new Paragraph({
+              children: [new ImageRun({ data: pieChartImageBase64, transformation: { width: 480, height: 320 } })],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            })
+          );
+        }
+      }
+
+      // 2. Profile Score Overview (Bar Chart)
+      if (summaryObject && summaryObject.managementScore !== undefined && summaryObject.techRoleScore !== undefined) {
+        const profileScoreChartImageBase64 = await captureChartAsImage('profileScoreChartContainer');
+        if (profileScoreChartImageBase64) {
+          docChildren.push(
+            new Paragraph({
+              children: [new TextRun({ text: "Profile Score Overview", bold: true, size: 24, underline: {} })],
+              heading: HeadingLevel.HEADING_2,
+              spacing: { after: 100, before: 200 },
+            }),
+            new Paragraph({
+              children: [new ImageRun({ data: profileScoreChartImageBase64, transformation: { width: 480, height: 270 } })],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            })
+          );
+        }
+      }
+
+      // 3. Skills Experience Breakdown (Years) (Bar Chart)
+      // This chart is captured if it's currently shown in the UI (showSkillsChart is true) and data exists.
+      if (showSkillsChart && skillsExperienceData && skillsExperienceData.length > 0) {
+        const skillsBarChartImageBase64 = await captureChartAsImage('skillsBarChartContainer');
+        if (skillsBarChartImageBase64) {
+          docChildren.push(
+            new Paragraph({
+              children: [new TextRun({ text: "Skills Experience Breakdown (Years)", bold: true, size: 24, underline: {} })],
+              heading: HeadingLevel.HEADING_2,
+              spacing: { after: 100, before: 200 },
+            }),
+            new Paragraph({
+              children: [new ImageRun({ data: skillsBarChartImageBase64, transformation: { width: 500, height: 400 } })],
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            })
+          );
+        }
+      }
+      
+      // --- Add QR Code if mobileNumber exists ---
+      if (mobileNumber) {
+        const qrCodeImageBase64 = await captureChartAsImage('qrCodeForDocx'); // Use the new ID
+        if (qrCodeImageBase64) {
+          docChildren.push(
+            new Paragraph({
+              children: [new TextRun({ text: "Contact QR Code", bold: true, size: 24, underline: {} })],
+              heading: HeadingLevel.HEADING_2,
+              spacing: { after: 100, before: 200 },
+            }),
+            new Paragraph({
+              children: [new ImageRun({ data: qrCodeImageBase64, transformation: { width: 100, height: 100 } })], // Adjust size as needed
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            })
+          );
+        }
+      }
+
+      // --- Add Resume Improvement Suggestions ---
+      docChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Resume Improvement Suggestions", bold: true, size: 24, underline: {} })],
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 100, before: 200 },
+        }),
+        new Paragraph({
+          children: [new TextRun("Consider the following to enhance your resume:")],
+          spacing: { after: 50 },
+        }),
+        new Paragraph({
+          text: "Ensure all project descriptions clearly state your specific contributions and quantifiable achievements.",
+          bullet: { level: 0 },
+        }),
+        new Paragraph({
+          text: "Tailor your summary to the specific job you are applying for, highlighting the most relevant skills.",
+          bullet: { level: 0 },
+        }),
+        new Paragraph({
+          text: "Double-check for consistency in dates and project details.",
+          bullet: { level: 0 },
+          spacing: { after: 200 },
+        })
+      );
+
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: docChildren,
         }],
       });
 
-      Packer.toBlob(doc).then(blob => {
-        saveAs(blob, "resume_summary.docx");
-        console.log("Document created successfully");
-      }).catch(err => {
-        console.error("Error packing document:", err);
-        alert("Failed to generate DOCX file.");
-      });
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, "resume_summary_with_charts.docx");
+      console.log("Document with charts created successfully");
 
     } catch (error) {
-      console.error("Error generating DOCX:", error);
-      alert("An error occurred while generating the DOCX file.");
+      console.error("Error generating DOCX with charts:", error);
+      alert("An error occurred while generating the DOCX file with charts.");
     } finally {
       setIsGeneratingDocx(false);
       setIsDownloadDialogOpen(false); // Close dialog after attempt
     }
   };
 
+  const generatePdf = async () => {
+    setIsGeneratingPdf(true);
+    setIsDownloadDialogOpen(false); // Close dialog before starting
+
+    const summaryContentElement = document.getElementById('summaryContentToPrint');
+    if (!summaryContentElement) {
+      alert("Could not find summary content to print.");
+      setIsGeneratingPdf(false);
+      return;
+    }
+
+    try {
+      // Temporarily adjust styles for printing if needed, e.g., remove box shadow
+      const originalBoxShadow = summaryContentElement.style.boxShadow;
+      summaryContentElement.style.boxShadow = 'none';
+
+      const canvas = await html2canvas(summaryContentElement, {
+        scale: 2, // Adjust scale for PDF quality
+        useCORS: true,
+        logging: false,
+        windowWidth: summaryContentElement.scrollWidth,
+        windowHeight: summaryContentElement.scrollHeight,
+      });
+
+      // Restore original styles
+      summaryContentElement.style.boxShadow = originalBoxShadow;
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4'); // A4 page in portrait, units in mm
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('resume_summary.pdf');
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("An error occurred while generating the PDF file.");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   // Processing Dialog
   const ProcessingDialog = () => (
@@ -742,7 +918,7 @@ function Summarize() {
             variant="outlined" 
             onClick={() => handleRedirect(
                 "/build-my-resume/projects-summary", 
-                { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+                { projectsData: projectsData, overallExperienceYears: routeOverallExperience, firstName, lastName, mobileNumber }
             )}
         >
             Back to Projects
@@ -789,8 +965,12 @@ function Summarize() {
           >
             {isGeneratingDocx ? <CircularProgress size={24} color="inherit" /> : "Download as DOCX"}
           </Button>
-          <Button variant="contained" color="primary" fullWidth onClick={() => alert("PDF download not yet implemented!")}>
-            Download as PDF
+          <Button 
+            variant="contained" 
+            color="primary" 
+            fullWidth 
+            onClick={generatePdf} disabled={isGeneratingPdf}>
+            {isGeneratingPdf ? <CircularProgress size={24} color="inherit" /> : "Download as PDF"}
           </Button>
         </Box>
       </DialogContent>
@@ -835,7 +1015,7 @@ function Summarize() {
           color="primary" 
           onClick={() => handleRedirect(
             "/build-my-resume/projects-summary", 
-            { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+            { projectsData: projectsData, overallExperienceYears: routeOverallExperience, firstName, lastName, mobileNumber }
           )}
           sx={{ minWidth: '140px' }}
         >
@@ -844,7 +1024,7 @@ function Summarize() {
         <Button 
           variant="contained" 
           color="primary" 
-          onClick={() => handleRedirect("/", null)}
+          onClick={() => handleRedirect("/", { firstName, lastName, mobileNumber })}
           sx={{ minWidth: '140px' }}
         >
           Main Menu
@@ -908,6 +1088,7 @@ function Summarize() {
   return (
     <>
     <Box
+      id="summaryContentToPrint" // Added ID for PDF generation
       sx={{
         maxWidth: 800,
         margin: "0 auto",
@@ -928,7 +1109,7 @@ function Summarize() {
           marginBottom: 3
         }}
       >
-        Candidate Profile Summary
+        {firstName && lastName ? `${firstName} ${lastName}'s Summary` : "Candidate Profile Summary"}
       </Typography>
 
       <Form layout="vertical">
@@ -1085,7 +1266,7 @@ function Summarize() {
                 label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Top Skills Experience Distribution</span>}
               >
                 <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
-                  <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} id="pieChartContainer">
                     <PieChart>
                       <Pie
                         data={skillsExperienceData.slice(0, 7)} // Show top 7 skills for pie chart
@@ -1127,7 +1308,7 @@ function Summarize() {
                 label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Profile Score Overview</span>}
               >
                 <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
-                  <ResponsiveContainer width="100%" height={250}>
+                  <ResponsiveContainer width="100%" height={250} id="profileScoreChartContainer">
                     <BarChart
                       data={[
                         { name: 'Management Score', score: summaryObject.managementScore },
@@ -1158,7 +1339,7 @@ function Summarize() {
                 label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Skills Experience Breakdown (Years)</span>}
               >
                 <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
-                  <ResponsiveContainer width="100%" height={400}>
+                  <ResponsiveContainer width="100%" height={400} id="skillsBarChartContainer">
                     <BarChart
                       data={skillsExperienceData}
                       margin={{
@@ -1213,6 +1394,19 @@ function Summarize() {
                 </ul>
               </Card>
             </Form.Item>
+
+            {/* QR Code Display */}
+            {mobileNumber && (
+              <Form.Item label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Contact QR Code</span>}>
+                <Card id="qrCodeForDocx" elevation={1} sx={{ padding: 2, backgroundColor: "#f1f8e9", border: "1px solid #c8e6c9", display: 'flex', justifyContent: 'center' }}>
+                  <QRCodeSVG value={mobileNumber} size={128} level="H" />
+                </Card>
+                <Typography variant="caption" display="block" sx={{ textAlign: 'center', color: 'text.secondary', mt: 1 }}>
+                  Scan to get in touch!
+                </Typography>
+              </Form.Item>
+            )}
+            
           </>
         )}
       </Form>
@@ -1240,7 +1434,7 @@ function Summarize() {
           color="primary" 
           onClick={() => handleRedirect(
             "/build-my-resume/projects-summary", 
-            { projectsData: projectsData, overallExperienceYears: routeOverallExperience }
+            { projectsData: projectsData, overallExperienceYears: routeOverallExperience, firstName, lastName, mobileNumber }
           )}
           sx={{ minWidth: '160px' }}
         >
@@ -1249,7 +1443,7 @@ function Summarize() {
         <Button 
           variant="contained" 
           color="primary" 
-          onClick={() => handleRedirect("/", null)}
+          onClick={() => handleRedirect("/", { firstName, lastName, mobileNumber })}
           sx={{ minWidth: '160px' }}
         >
           Back to Main Menu
