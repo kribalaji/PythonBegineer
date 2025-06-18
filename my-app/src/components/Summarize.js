@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Typography, Form, Input, Select as AntdSelect } from "antd"; // Added AntdSelect
+import { Typography, Form, Input, Select as AntdSelect } from "antd";
 import { useLocation, useNavigate} from "react-router-dom";
 import nlp from "compromise";
 import {
@@ -18,6 +18,10 @@ import {
 } from "@mui/material";
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'; // Added for info icons
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import dayjs from 'dayjs';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { saveAs } from 'file-saver';
 
 const { TextArea } = Input;
 
@@ -191,6 +195,75 @@ const determineBestRole = (techSkills, managementScore, text, experienceYears) =
   return "Junior Software Engineer"; // 0-2 years
 };
 
+// Helper function to safely rehydrate date values (similar to ProjectsSummary.js)
+const rehydrateDateForSummarize = (valueFromState) => {
+  if (!valueFromState) {
+    return null;
+  }
+  // If it's already a Dayjs object with methods, dayjs() will clone it.
+  // If it's a string, number, or native Date, dayjs() will parse it.
+  // If it's a plain object that looks like a Dayjs object but lacks methods (e.g., from state transfer),
+  // dayjs() might still be able to parse it if its internal structure ($d) is a recognizable date.
+  if (typeof valueFromState === 'object' && valueFromState !== null && valueFromState.$isDayjsObject && typeof valueFromState.clone !== 'function') {
+    // Attempt to reconstruct from internal $d property if it's a problematic Dayjs-like object
+    if (valueFromState.$d) {
+      const rawDate = valueFromState.$d;
+      if (rawDate instanceof Date || typeof rawDate === 'string' || typeof rawDate === 'number' || dayjs.isDayjs(rawDate)) {
+        return dayjs(rawDate);
+      }
+    }
+    // Fallback for problematic objects that can't be easily reconstructed
+    return null; 
+  }
+  return dayjs(valueFromState); // Standard Dayjs parsing/cloning
+};
+
+// Helper function to calculate project duration in years
+const calculateProjectDurationInYears = (startDate, endDate) => {
+  // startDate and endDate are expected to be dayjs objects
+  if (!startDate || !startDate.isValid()) return 0;
+
+  // If endDate is null/undefined (ongoing project) or not a valid dayjs object, default to now.
+  // If endDate is a valid dayjs object, use it.
+  const end = (endDate && endDate.isValid()) ? endDate : dayjs();
+
+  if (end.isBefore(startDate)) return 0;
+  return end.diff(startDate, 'month') / 12; // Duration in years (can be fractional)
+};
+
+// Helper function to prepare data for the skills experience graph
+const prepareSkillsExperienceData = (projects, topN = 15) => {
+  const skillExperience = {};
+
+  projects.forEach(project => {
+    const sDate = project.startDate && dayjs(project.startDate).isValid() ? dayjs(project.startDate) : null;
+    const eDate = project.endDate && dayjs(project.endDate).isValid() ? dayjs(project.endDate) : null;
+
+    if (!sDate) return; // Skip project if start date is invalid
+
+    const duration = calculateProjectDurationInYears(sDate, eDate);
+    if (duration <= 0) return;
+
+    const skills = [];
+    if (project.programmingLanguages) skills.push(...project.programmingLanguages.split(',').map(s => s.trim()).filter(s => s));
+    if (project.devOpsTools) skills.push(...project.devOpsTools.split(',').map(s => s.trim()).filter(s => s));
+    if (project.databases) skills.push(...project.databases.split(',').map(s => s.trim()).filter(s => s));
+    if (project.cloudPlatform) skills.push(...project.cloudPlatform.split(',').map(s => s.trim()).filter(s => s));
+
+    const uniqueSkillsInProject = [...new Set(skills)];
+
+    uniqueSkillsInProject.forEach(skill => {
+      skillExperience[skill] = (skillExperience[skill] || 0) + duration;
+    });
+  });
+
+  const allSkills = Object.entries(skillExperience)
+    .map(([name, experience]) => ({ name, experience: parseFloat(experience.toFixed(1)) }))
+    .sort((a, b) => b.experience - a.experience);
+
+  return allSkills.slice(0, topN);
+};
+
 // Enhanced NLP function for better summarization
 const generateInitialSummaryAndRole = (concatenatedDetails, overallExperienceYearsInput) => { 
   if (!concatenatedDetails || concatenatedDetails.trim() === "" || concatenatedDetails.length < 20) {
@@ -286,11 +359,38 @@ const adjustRoleBasedOnRating = (currentRole, averageRating) => {
   return currentRole; // For ratings < 4 or if no promotion applies
 };
 
+// Custom label renderer for the Pie Chart
+const renderCustomizedPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }) => {
+  const RADIAN = Math.PI / 180;
+  // Position label outside the slice
+  const radius = outerRadius + 15; // Adjust this value for distance from pie
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  const MAX_NAME_LENGTH_IN_LABEL = 10; // Max characters for skill name part in the label
+  const displayName = name.length > MAX_NAME_LENGTH_IN_LABEL 
+    ? `${name.substring(0, MAX_NAME_LENGTH_IN_LABEL - 3)}...` 
+    : name;
+  
+  const labelText = `${displayName} (${(percent * 100).toFixed(0)}%)`;
+
+  // Do not render label if the slice is too small (e.g., less than 5% to avoid clutter)
+  if (percent * 100 < 5) {
+    return null;
+  }
+
+  return (
+    <text x={x} y={y} fill="#333333" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize="10px">
+      {labelText}
+    </text>
+  );
+};
+
 function Summarize() {
   const location = useLocation();
   const navigate = useNavigate();
   // Correctly get projectsData, which is an array of project objects
-  const { projectsData, overallExperience: routeOverallExperience } = location.state || { projectsData: [], overallExperience: 0 };
+  const { projectsData, overallExperience: routeOverallExperience, codeAIExperienceFromSummary } = location.state || { projectsData: [], overallExperience: 0, codeAIExperienceFromSummary: [] };
 
   const [summary, setSummary] = useState("");
   const [summaryObject, setSummaryObject] = useState(null); // To store the full summary object
@@ -307,6 +407,10 @@ function Summarize() {
   const [performanceRatings, setPerformanceRatings] = useState({});
   const [averagePerformanceRating, setAveragePerformanceRating] = useState(null);
   const [ratingsError, setRatingsError] = useState("");
+  const [skillsExperienceData, setSkillsExperienceData] = useState([]);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false); // State for download dialog
+  const [isGeneratingDocx, setIsGeneratingDocx] = useState(false); // State for DOCX generation
+  const [showSkillsChart, setShowSkillsChart] = useState(false);
 
   // Determine how many years of ratings to ask for
   const getRatingYearsToAsk = useCallback((experience) => {
@@ -322,10 +426,16 @@ function Summarize() {
     setIsLoading(true); // Set loading true for the summary generation phase
 
     setTimeout(() => {
-        const concatenatedDetails = projectsData
+        // Rehydrate dates in projectsData before processing
+        const rehydratedProjectsData = projectsData.map(p => ({
+          ...p,
+          startDate: rehydrateDateForSummarize(p.startDate),
+          endDate: rehydrateDateForSummarize(p.endDate),
+        }));
+
+        const concatenatedDetails = rehydratedProjectsData
             .map(p => `${p.title || ""} ${p.description || ""} ${p.role || ""} ${p.programmingLanguages || ""} ${p.devOpsTools || ""} ${p.databases || ""}`)
             .join("\n\n");
-
         const { summaryObject: initialSummaryObj, jobRole: initialJobRole } = generateInitialSummaryAndRole(concatenatedDetails, routeOverallExperience);
 
         if (initialSummaryObj.error) {
@@ -335,6 +445,13 @@ function Summarize() {
             setSummary(initialSummaryObj.summary || "");
             setSummaryObject(initialSummaryObj); // Store the full object
             setJobRole(finalJobRole);
+
+            if (rehydratedProjectsData && rehydratedProjectsData.length > 0) {
+              const chartData = prepareSkillsExperienceData(rehydratedProjectsData);
+              setSkillsExperienceData(chartData);
+            } else {
+              setSkillsExperienceData([]);
+            }
         }
         setProcessingDialogOpen(false); // Stop processing dialog
         setIsLoading(false); // Stop main loading indicator
@@ -400,6 +517,7 @@ function Summarize() {
     setRedirectTarget(target);
     if (isRatingsDialogOpen) setIsRatingsDialogOpen(false);
     if (errorDialogOpen) setErrorDialogOpen(false);
+    if (isDownloadDialogOpen) setIsDownloadDialogOpen(false); // Close download dialog on redirect
 
     setRedirectDialogOpen(true);
     setTimeout(() => {
@@ -417,6 +535,136 @@ function Summarize() {
       navigate(target, { state: navigationState }); // Pass the full state object
     }, 2000);
   };
+
+  const generateDocx = async () => {
+    setIsGeneratingDocx(true);
+    try {
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: "Candidate Resume", bold: true, size: 32 })],
+              heading: HeadingLevel.TITLE,
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 200 },
+            }),
+
+            new Paragraph({
+              children: [new TextRun({ text: "Recommended Role", bold: true, size: 28 })],
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 100 },
+            }),
+            new Paragraph({ text: jobRole || "Not specified", spacing: { after: 200 } }),
+
+            new Paragraph({
+              children: [new TextRun({ text: "Professional Summary", bold: true, size: 28 })],
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 100 },
+            }),
+            new Paragraph({ text: summary || "Not specified", spacing: { after: 200 } }),
+
+            new Paragraph({
+              children: [new TextRun({ text: "Key Information", bold: true, size: 28 })],
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 100 },
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Years of Experience: ", bold: true }),
+                new TextRun({ text: `${summaryObject?.experience || 0} years` }),
+              ],
+              spacing: { after: 50 }
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({ text: "Key Technical Skills: ", bold: true }),
+                new TextRun({ text: summaryObject?.skills?.join(', ') || "Not specified" }),
+              ],
+              spacing: { after: 200 }
+            }),
+
+            new Paragraph({
+              children: [new TextRun({ text: "Project Experience", bold: true, size: 28 })],
+              heading: HeadingLevel.HEADING_1,
+              spacing: { after: 100 },
+            }),
+            ...(projectsData && projectsData.length > 0 ? projectsData.flatMap((project, index) => [
+              new Paragraph({
+                children: [new TextRun({ text: project.title || `Project ${index + 1}`, bold: true, size: 24 })],
+                heading: HeadingLevel.HEADING_2,
+                spacing: { after: 50, before: 150 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "Dates: ", bold: true }),
+                  new TextRun({
+                    text: `${project.startDate ? dayjs(rehydrateDateForSummarize(project.startDate)).format('MMM YYYY') : 'N/A'} - ${project.endDate ? dayjs(rehydrateDateForSummarize(project.endDate)).format('MMM YYYY') : 'Present'}`,
+                  }),
+                ],
+                spacing: { after: 50 }
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: "Role/Contribution: ", bold: true })],
+                spacing: { after: 20 }
+              }),
+              new Paragraph({ text: project.role || "Not specified", spacing: { after: 50 } }),
+              new Paragraph({
+                children: [new TextRun({ text: "Description: ", bold: true })],
+                spacing: { after: 20 }
+              }),
+              new Paragraph({ text: project.description || "Not specified", spacing: { after: 50 } }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: "Technologies: ", bold: true }),
+                  new TextRun({
+                    text: [
+                      project.programmingLanguages,
+                      project.devOpsTools,
+                      project.databases,
+                      project.cloudPlatform,
+                    ].filter(Boolean).join(', ') || "Not specified",
+                  }),
+                ],
+                spacing: { after: 100 }
+              }),
+            ]) : [new Paragraph({ text: "No project data available.", spacing: { after: 200 } })]),
+
+            ...(averagePerformanceRating !== null ? [
+              new Paragraph({
+                children: [new TextRun({ text: "Performance Insight", bold: true, size: 28 })],
+                heading: HeadingLevel.HEADING_1,
+                spacing: { after: 100, before: 200 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `Average performance rating (last ${ratingYears.length} year(s)): `, bold: true }),
+                  new TextRun({ text: `${averagePerformanceRating} out of 5` }),
+                ],
+                spacing: { after: 200 }
+              }),
+            ] : []),
+          ],
+        }],
+      });
+
+      Packer.toBlob(doc).then(blob => {
+        saveAs(blob, "resume_summary.docx");
+        console.log("Document created successfully");
+      }).catch(err => {
+        console.error("Error packing document:", err);
+        alert("Failed to generate DOCX file.");
+      });
+
+    } catch (error) {
+      console.error("Error generating DOCX:", error);
+      alert("An error occurred while generating the DOCX file.");
+    } finally {
+      setIsGeneratingDocx(false);
+      setIsDownloadDialogOpen(false); // Close dialog after attempt
+    }
+  };
+
 
   // Processing Dialog
   const ProcessingDialog = () => (
@@ -508,6 +756,50 @@ function Summarize() {
       </DialogActions>
     </Dialog>
   );
+
+  // Download Options Dialog
+  const DownloadDialog = () => (
+    <Dialog
+      open={isDownloadDialogOpen}
+      onClose={() => setIsDownloadDialogOpen(false)}
+      aria-labelledby="download-dialog-title"
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          minWidth: '350px',
+          maxWidth: '450px',
+          p: 1
+        }
+      }}
+    >
+      <DialogTitle id="download-dialog-title" sx={{ textAlign: 'center', fontWeight: 'bold', color: 'primary.main' }}>
+        Download Resume
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2, textAlign: 'center' }}>
+          Choose a format to download your generated resume summary.
+        </DialogContentText>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            fullWidth 
+            onClick={generateDocx}
+            disabled={isGeneratingDocx}
+          >
+            {isGeneratingDocx ? <CircularProgress size={24} color="inherit" /> : "Download as DOCX"}
+          </Button>
+          <Button variant="contained" color="primary" fullWidth onClick={() => alert("PDF download not yet implemented!")}>
+            Download as PDF
+          </Button>
+        </Box>
+      </DialogContent>
+      <DialogActions sx={{ justifyContent: 'center', pt: 2 }}>
+        <Button onClick={() => setIsDownloadDialogOpen(false)} color="primary">Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   // Error Dialog
   const ErrorDialog = () => (
     <Dialog
@@ -602,8 +894,8 @@ function Summarize() {
   }
 
   // If any dialog (Ratings, Error, or Redirect) should be open, render them.
+  // DownloadDialog is handled separately in the main return.
   if (isRatingsDialogOpen || errorDialogOpen || redirectDialogOpen) {
-    // If ratings dialog was meant to be open but an error occurred before it, ensure it's not lost
     return (
       <>
         {isRatingsDialogOpen && <RatingsDialog />}
@@ -614,6 +906,7 @@ function Summarize() {
   }
 
   return (
+    <>
     <Box
       sx={{
         maxWidth: 800,
@@ -787,19 +1080,105 @@ function Summarize() {
               </Card>
             </Form.Item>
 
-            <Form.Item
-              label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Key Project Highlights</span>}
-            >
-              <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e3f2fd", border: "1px solid #90caf9" }}>
-                {summaryObject.keyTopics?.length > 0 ? (
-                  <ul style={{ margin: 0, paddingLeft: '20px', color: "#1a237e", fontSize: "15px", fontFamily: "'Roboto Mono', monospace", lineHeight: 1.6 }}>
-                    {summaryObject.keyTopics.map((topic, index) => <li key={index}>{topic}</li>)}
-                  </ul>
-                ) : (
-                  <Typography sx={{color: "#333", fontSize: "15px"}}>Not specified.</Typography>
-                )}
-              </Card>
-            </Form.Item>
+            {skillsExperienceData && skillsExperienceData.length > 0 && (
+              <Form.Item
+                label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Top Skills Experience Distribution</span>}
+              >
+                <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={skillsExperienceData.slice(0, 7)} // Show top 7 skills for pie chart
+                        cx="50%"
+                        cy="50%"
+                        labelLine={true} // Enable label lines
+                        label={renderCustomizedPieLabel}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="experience"
+                        nameKey="name"
+                      >
+                        {skillsExperienceData.slice(0, 7).map((entry, index) => {
+                          const isAICodingAssistant = codeAIExperienceFromSummary && codeAIExperienceFromSummary.includes(entry.name);
+                          const defaultColors = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC0CB'];
+                          const fillColor = isAICodingAssistant ? '#A569BD' : defaultColors[index % defaultColors.length]; // Purple for AI assistants, cycles through defaults otherwise
+                          return <Cell key={`cell-${index}`} fill={fillColor} />;
+                        })}
+                      </Pie>
+                      <RechartsTooltip formatter={(value, name) => [`${parseFloat(value).toFixed(1)} years`, name]} />
+                      <Legend
+                        layout="vertical"
+                        align="right"
+                        verticalAlign="middle"
+                        iconSize={10}
+                        wrapperStyle={{ lineHeight: '24px', paddingLeft: '20px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <Typography variant="caption" display="block" sx={{ textAlign: 'center', color: 'text.secondary', mt: 1 }}>
+                    Proportional experience breakdown for top skills.
+                  </Typography>
+                </Card>
+              </Form.Item>
+            )}
+
+            {summaryObject && summaryObject.managementScore !== undefined && summaryObject.techRoleScore !== undefined && (
+              <Form.Item
+                label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Profile Score Overview</span>}
+              >
+                <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart
+                      data={[
+                        { name: 'Management Score', score: summaryObject.managementScore },
+                        { name: 'Technical Score', score: summaryObject.techRoleScore },
+                      ]}
+                      margin={{
+                        top: 5, right: 30, left: 20, bottom: 5,
+                      }}
+                      layout="vertical" // For horizontal bars
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" domain={[0, 'dataMax + 1']} /> 
+                      <YAxis dataKey="name" type="category" width={120} />
+                      <RechartsTooltip formatter={(value) => `${value} points`} />
+                      <Legend />
+                      <Bar dataKey="score" fill="#8884d8" name="Score" barSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <Typography variant="caption" display="block" sx={{ textAlign: 'center', color: 'text.secondary', mt: 1 }}>
+                    Comparison of calculated management/leadership and technical role scores.
+                  </Typography>
+                </Card>
+              </Form.Item>
+            )}
+
+            {showSkillsChart && skillsExperienceData && skillsExperienceData.length > 0 && (
+              <Form.Item
+                label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Skills Experience Breakdown (Years)</span>}
+              >
+                <Card elevation={1} sx={{ padding: "16px", backgroundColor: "#ffffff", border: "1px solid #e0e0e0" }}>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart
+                      data={skillsExperienceData}
+                      margin={{
+                        top: 5, right: 30, left: 20, bottom: 100, // Increased bottom margin for rotated labels
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 10 }} height={100} />
+                      <YAxis 
+                        label={{ value: 'Years of Experience', angle: -90, position: 'insideLeft', style: {textAnchor: 'middle', fontSize: '12px', fill: '#666'}, offset: -5 }} 
+                        tickFormatter={(value) => value.toFixed(1)}
+                      />
+                      <RechartsTooltip formatter={(value) => `${parseFloat(value).toFixed(1)} years`} />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }}/>
+                      <Bar dataKey="experience" fill="#82ca9d" name="Years of Experience" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+              </Form.Item>
+            )}
 
             {averagePerformanceRating !== null && (
                 <Form.Item
@@ -837,7 +1216,25 @@ function Summarize() {
           </>
         )}
       </Form>
-      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
+      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+        {/* Download Button */}
+        <Button
+          variant="contained"
+          color="success" // Using success color for download
+          onClick={() => setIsDownloadDialogOpen(true)}
+          sx={{ minWidth: '160px' }}
+        >
+          Download Resume
+        </Button>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={() => setShowSkillsChart(!showSkillsChart)}
+          disabled={!skillsExperienceData || skillsExperienceData.length === 0}
+          sx={{ minWidth: '160px' }}
+        >
+          {showSkillsChart ? "Hide Skill Charts" : "Explore Skill Charts"}
+        </Button>
         <Button 
           variant="outlined" 
           color="primary" 
@@ -859,6 +1256,9 @@ function Summarize() {
         </Button>
       </Box>
     </Box>
+    {/* Render the Download Dialog */}
+    {isDownloadDialogOpen && <DownloadDialog />}
+    </>
   );
 }
 

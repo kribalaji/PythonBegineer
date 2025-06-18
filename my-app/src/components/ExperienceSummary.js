@@ -134,74 +134,105 @@ function ExperienceSummary() {
         const cloudExp = formData.cloudPlatforms.filter(p => p !== "Not Applicable-Cloud");
         const aiExp = formData.codeAIExperience.filter(a => a !== "Not Applicable-AI");
         
-        // Use the current summary or pick a default if empty
-        let customizedSummary = formData.professionalSummary;
-        
-        // If still no summary, pick one based on experience
-        if (!customizedSummary) {
-          // Find the most appropriate template based on selections
-          let bestTemplateIndex = 0;
-          
-          if (cloudExp.some(p => p.includes("AWS") || p.includes("Azure") || p.includes("GCP"))) {
-            bestTemplateIndex = 2;
-            if (cloudExp.length > 1) bestTemplateIndex = 6;
+        // Always start from a base template when "Generate" is clicked to avoid cumulative modifications.
+        let templateIndexForGeneration = 0; 
+        const years = parseInt(formData.yearsOfExperience, 10);
+
+        if (!isNaN(years)) {
+          if (years <= 1) {
+            templateIndexForGeneration = 15; // New Bee-Fresher
+          } else if (years > 1 && years <= 2) {
+            templateIndexForGeneration = 0;  // Experienced software engineer (adaptable for Junior)
+          } else if (years > 2 && years <= 5) {
+            templateIndexForGeneration = 0;  // Experienced software engineer
+          } else if (years > 5 && years <= 8) {
+            templateIndexForGeneration = 1;  // Senior Software Engineer
+          } else if (years > 8 && years <= 13) {
+            templateIndexForGeneration = 8;  // Accomplished Technical Manager
+          } else if (years > 13 && years <= 18) {
+            templateIndexForGeneration = 14; // Visionary Senior Director
+          } else { // years > 18
+            templateIndexForGeneration = 18; // Solutions Architect
           }
-          
-          if (aiExp.length > 0 && aiExp.length > 1) {
-            bestTemplateIndex = 5;
-          }
-          
-          customizedSummary = summaryTemplates[bestTemplateIndex];
+        } else {
+          templateIndexForGeneration = 0; // Fallback if years is not a number
         }
+        
+        let generatedSummary = summaryTemplates[templateIndexForGeneration]; // Start fresh with a selected template
+
+        // The old logic for picking a template if formData.professionalSummary was empty is now handled by always picking a template.
+        /*
+          let bestTemplateIndex = 0; // Default template
+          const years = parseInt(formData.yearsOfExperience, 10);
+
+          if (!isNaN(years)) {
+            if (years <= 1) {
+              bestTemplateIndex = 15; // New Bee-Fresher
+            } else if (years > 1 && years <= 2) {
+              bestTemplateIndex = 0;  // Experienced software engineer (adaptable for Junior)
+            } else if (years > 2 && years <= 5) {
+              bestTemplateIndex = 0;  // Experienced software engineer
+            } else if (years > 5 && years <= 8) {
+              bestTemplateIndex = 1;  // Senior Software Engineer
+            } else if (years > 8 && years <= 13) {
+              bestTemplateIndex = 8;  // Accomplished Technical Manager
+            } else if (years > 13 && years <= 18) {
+              bestTemplateIndex = 14; // Visionary Senior Director (suitable for Sr. Manager context)
+            } else { // years > 18
+              // For > 18 years, default to a senior technical/architect role template.
+              // The final role title (Architect or Account Manager) is determined in Summarize.js.
+              // Here, we pick a suitable summary *text* template.
+              bestTemplateIndex = 18; // Solutions Architect
+              // As an alternative for > 18, if Account Manager is preferred for the summary text:
+              // bestTemplateIndex = 10; // Proactive Account Manager
+            }
+          } else {
+            // Fallback if years is not a number, though input validation should prevent this.
+            bestTemplateIndex = 0; // Default to a general template
+          }
+          generatedSummary = summaryTemplates[bestTemplateIndex];
+        */
         
         // Select random professional trait
         const randomTrait = professionalTraits[Math.floor(Math.random() * professionalTraits.length)];
         
         // Select random experience phrase and replace {years}
         let randomExpPhrase = experiencePhrases[Math.floor(Math.random() * experiencePhrases.length)];
-        randomExpPhrase = randomExpPhrase.replace("{years}", formData.yearsOfExperience);
+        randomExpPhrase = randomExpPhrase.replace("{years}", formData.yearsOfExperience || "several");
         
-        // Replace years of experience with more dynamic phrasing
-        if (customizedSummary.match(/(\d+\+?)\s+years? of experience/i)) {
-          customizedSummary = customizedSummary.replace(
-            /(\d+\+?)\s+years? of experience/i, 
-            randomExpPhrase
-          );
+        const dynamicExperienceInsert = `${randomTrait.charAt(0).toUpperCase() + randomTrait.slice(1)} professional ${randomExpPhrase}`;
+
+        // Prepend the dynamic experience phrase to the generated summary
+        if (generatedSummary.trim() !== "") {
+            generatedSummary = `${dynamicExperienceInsert}. ${generatedSummary}`;
         } else {
-          // If no years phrase was found, add it at a strategic position
-          const sentences = customizedSummary.split('. ');
-          if (sentences.length > 1) {
-            sentences[0] = `${sentences[0]}. ${randomTrait.charAt(0).toUpperCase() + randomTrait.slice(1)} professional ${randomExpPhrase}`;
-            customizedSummary = sentences.join('. ');
-          } else {
-            customizedSummary = `${randomTrait.charAt(0).toUpperCase() + randomTrait.slice(1)} professional ${randomExpPhrase}. ${customizedSummary}`;
-          }
+            generatedSummary = `${dynamicExperienceInsert}.`;
         }
         
         // Add cloud platform experience with varied phrasing
-        if (cloudExp.length > 0 && !customizedSummary.toLowerCase().includes("cloud")) {
+        if (cloudExp.length > 0 && !generatedSummary.toLowerCase().includes("cloud")) {
           const cloudPlatforms = cloudExp.join(", ").replace(/-/g, " ");
           const randomCloudPhrase = cloudPhrases[Math.floor(Math.random() * cloudPhrases.length)]
             .replace("{platforms}", cloudPlatforms);
           
-          customizedSummary = customizedSummary.replace(/\.\s*$/, `. ${randomCloudPhrase}`);
+          generatedSummary = generatedSummary.replace(/\.\s*$/, `. ${randomCloudPhrase}`);
         }
         
         // Add AI tools with varied phrasing
-        if (aiExp.length > 0 && !customizedSummary.toLowerCase().includes("ai")) {
+        if (aiExp.length > 0 && !generatedSummary.toLowerCase().includes("ai")) {
           const aiTools = aiExp.join(", ").replace(/-/g, " ");
           const randomAiPhrase = aiPhrases[Math.floor(Math.random() * aiPhrases.length)]
             .replace("{tools}", aiTools);
           
-          customizedSummary = customizedSummary.replace(/\.\s*$/, `. ${randomAiPhrase}`);
+          generatedSummary = generatedSummary.replace(/\.\s*$/, `. ${randomAiPhrase}`);
         }
         
         // Ensure the summary doesn't end with multiple periods
-        customizedSummary = customizedSummary.replace(/\.+$/, '.');
+        generatedSummary = generatedSummary.replace(/\.+$/, '.');
         
         setFormData({
           ...formData,
-          professionalSummary: customizedSummary
+          professionalSummary: generatedSummary
         });
         
       } catch (error) {
