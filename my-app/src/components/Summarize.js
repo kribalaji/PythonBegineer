@@ -570,13 +570,27 @@ function Summarize() {
 
       // Add existing text content to docChildren
       docChildren.push(
-            new Paragraph({
-              children: [new TextRun({ text: "Candidate Resume", bold: true, size: 32 })],
-              heading: HeadingLevel.TITLE,
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: firstName && lastName ? `${firstName} ${lastName}'s Resume Summary` : "Candidate Resume Summary",
+              bold: true, size: 32 
+            })],
+          heading: HeadingLevel.TITLE,
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 },
             }),
 
+        // Add Mobile Number if available
+        ...(mobileNumber ? [
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Mobile Number: ", bold: true }),
+              new TextRun({ text: mobileNumber }),
+            ],
+            spacing: { after: 200 },
+          }),
+        ] : []),
         new Paragraph({
               children: [new TextRun({ text: "Recommended Role", bold: true, size: 28, underline: {} })],
               heading: HeadingLevel.HEADING_1,
@@ -610,52 +624,6 @@ function Summarize() {
               ],
               spacing: { after: 200 }
             }),
-
-        new Paragraph({
-              children: [new TextRun({ text: "Project Experience", bold: true, size: 28, underline: {} })],
-              heading: HeadingLevel.HEADING_1,
-              spacing: { after: 100 },
-            }),
-            ...(projectsData && projectsData.length > 0 ? projectsData.flatMap((project, index) => [
-          new Paragraph({
-                children: [new TextRun({ text: project.title || `Project ${index + 1}`, bold: true, size: 24, underline: {} })],
-                heading: HeadingLevel.HEADING_2,
-                spacing: { after: 50, before: 150 },
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Dates: ", bold: true }),
-                  new TextRun({
-                    text: `${project.startDate ? dayjs(rehydrateDateForSummarize(project.startDate)).format('MMM YYYY') : 'N/A'} - ${project.endDate ? dayjs(rehydrateDateForSummarize(project.endDate)).format('MMM YYYY') : 'Present'}`,
-                  }),
-                ],
-                spacing: { after: 50 }
-              }),
-              new Paragraph({
-                children: [new TextRun({ text: "Role/Contribution: ", bold: true })],
-                spacing: { after: 20 }
-              }),
-              new Paragraph({ text: project.role || "Not specified", spacing: { after: 50 } }),
-              new Paragraph({
-                children: [new TextRun({ text: "Description: ", bold: true })],
-                spacing: { after: 20 }
-              }),
-              new Paragraph({ text: project.description || "Not specified", spacing: { after: 50 } }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: "Technologies: ", bold: true }),
-                  new TextRun({
-                    text: [
-                      project.programmingLanguages,
-                      project.devOpsTools,
-                      project.databases,
-                      project.cloudPlatform,
-                    ].filter(Boolean).join(', ') || "Not specified",
-                  }),
-                ],
-                spacing: { after: 100 }
-              }),
-        ]) : [new Paragraph({ text: "No project data available.", spacing: { after: 200 } })])
       );
 
       if (averagePerformanceRating !== null) {
@@ -674,6 +642,71 @@ function Summarize() {
               }),
         );
       }
+
+      // Add Code AI Assistant Experience to DOCX
+      if (codeAIExperienceFromSummary && codeAIExperienceFromSummary.length > 0) {
+        docChildren.push(
+          new Paragraph({
+            children: [new TextRun({ text: "Code AI Assistant Experience", bold: true, size: 28, underline: {} })],
+            heading: HeadingLevel.HEADING_1,
+            spacing: { after: 100, before: 200 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: codeAIExperienceFromSummary.join(', ').replace(/-/g, " ") || "Not specified" })],
+            spacing: { after: 200 },
+          })
+        );
+      }
+
+      // Add Detailed Project Experience to DOCX
+      docChildren.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Project Experience", bold: true, size: 28, underline: {} })],
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 100, before: 200 },
+        }),
+        ...(projectsData && projectsData.length > 0 ? projectsData.flatMap((project, index) => [
+          new Paragraph({
+            children: [new TextRun({ text: project.title || `Project ${index + 1}`, bold: true, size: 24, underline: {} })],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { after: 50, before: 150 },
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "Dates: ", bold: true }),
+              new TextRun({
+                text: `${project.startDate ? dayjs(rehydrateDateForSummarize(project.startDate)).format('MMM YYYY') : 'N/A'} - ${project.endDate ? dayjs(rehydrateDateForSummarize(project.endDate)).format('MMM YYYY') : 'Present'}`,
+              }),
+            ],
+            spacing: { after: 50 }
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: "Role/Contribution: ", bold: true })],
+            spacing: { after: 20 }
+          }),
+          new Paragraph({ text: project.role || "Not specified", spacing: { after: 50 } }),
+          new Paragraph({
+            children: [new TextRun({ text: "Description: ", bold: true })],
+            spacing: { after: 20 }
+          }),
+          new Paragraph({ text: project.description || "Not specified", spacing: { after: 50 } }),
+          new Paragraph({
+            children: [new TextRun({ text: "Technologies: ", bold: true })], // Keep this as a TextRun
+            // For the actual list of technologies, create a new Paragraph if you want it on a new line,
+            // or append as TextRun if you want it on the same line.
+            // Here, assuming you want it on the same line or as part of the same logical block:
+          }),
+          new Paragraph({ // This will put technologies on a new line after "Technologies: "
+            text: [
+              project.programmingLanguages,
+              project.devOpsTools,
+              project.databases,
+              project.cloudPlatform,
+            ].filter(Boolean).join(', ') || "Not specified",
+            spacing: { after: 100 }
+          }),
+        ]) : [new Paragraph({ text: "No project data available.", spacing: { after: 200 } })])
+      );
 
       // --- Add Charts ---
 
@@ -1260,6 +1293,25 @@ function Summarize() {
                 </Typography>
               </Card>
             </Form.Item>
+
+            {/* Code AI Assistant Experience Display */}
+            {codeAIExperienceFromSummary && codeAIExperienceFromSummary.length > 0 && (
+              <Form.Item
+                label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Code AI Assistant Experience</span>}
+              >
+                <Card elevation={1} sx={{ padding: "12px", backgroundColor: "#e8eaf6", border: "1px solid #9fa8da" }}>
+                  <Typography sx={{
+                      color: "#303f9f",
+                      fontSize: "15px",
+                      fontFamily: "'Roboto Mono', monospace",
+                      lineHeight: 1.6
+                    }}
+                  >
+                    {codeAIExperienceFromSummary.join(', ').replace(/-/g, " ") || "Not specified."}
+                  </Typography>
+                </Card>
+              </Form.Item>
+            )}
 
             {skillsExperienceData && skillsExperienceData.length > 0 && (
               <Form.Item
