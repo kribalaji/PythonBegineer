@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Typography, Button, Box, TextField, FormGroup, FormControlLabel, Checkbox, CircularProgress, InputAdornment, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 function ExperienceSummary() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const resumeFormData = location.state?.resumeFormData || {};
 
   // Arrays for dynamic content generation
   const professionalTraits = [
@@ -339,7 +341,15 @@ function ExperienceSummary() {
     setIsGuidanceDialogOpen(false); // Close the dialog
     navigate("../projects-summary", {
       state: {
-        overallExperienceYears: formData.yearsOfExperience
+        overallExperienceYears: formData.yearsOfExperience,
+        codeAIExperience: formData.codeAIExperience,
+        firstName: resumeFormData.firstName,
+        lastName: resumeFormData.lastName,
+        mobileNumber: resumeFormData.mobileNumber,
+        city: resumeFormData.city,
+        state: resumeFormData.state,
+        country: resumeFormData.country,
+        practice: resumeFormData.practice,
       }
     });
     console.log("Form Data:", formData);

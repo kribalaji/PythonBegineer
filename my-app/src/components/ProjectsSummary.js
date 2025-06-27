@@ -777,6 +777,13 @@ function ProjectsSummary() {
   const navigate = useNavigate();
   const location = useLocation();
   const overallExperienceYears = location.state?.overallExperienceYears ? parseInt(location.state.overallExperienceYears, 10) : 0;
+  const firstName = location.state?.firstName || "";
+  const lastName = location.state?.lastName || "";
+  const mobileNumber = location.state?.mobileNumber || "";
+  const city = location.state?.city || "";
+  const stateName = location.state?.state || "";
+  const country = location.state?.country || "";
+  const practice = location.state?.practice || "";
   const codeAIExperienceFromPrevStep = location.state?.codeAIExperience || []; // Receive AI tools
 
   // State for dialog popups
@@ -1299,8 +1306,16 @@ const handleAutocompleteChange = useCallback((index, name, value) => {
                  return; // Prevent navigation
               }
               
-              // If all checks pass, navigate
-              navigate("/summarize", { state: { projectsData: projects, overallExperience: overallExperienceYears, codeAIExperienceFromSummary: codeAIExperienceFromPrevStep } });
+              // If all checks pass, navigate, passing firstName, lastName, and mobileNumber
+              navigate("/summarize", { state: { projectsData: projects, overallExperience: overallExperienceYears, codeAIExperienceFromSummary: codeAIExperienceFromPrevStep,
+                                               firstName,
+                                               lastName,
+                                               mobileNumber,
+                                               city,
+                                               state: stateName,
+                                               country,
+                                               practice,
+                                              } });
             }}
             sx={{ width: "50%", backgroundColor: "#3498db", '&:hover': { backgroundColor: "#2980b9" } }}
           >

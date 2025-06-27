@@ -15,13 +15,15 @@ import {
   Grid, // For layout in ratings dialog
   Tooltip, // Added for info icons
   IconButton, // Added for info icons
+  Avatar,
 } from "@mui/material";
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'; // Added for info icons
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import dayjs from 'dayjs';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from 'docx';
-import { QRCodeSVG } from 'qrcode.react'; 
+import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
@@ -389,13 +391,96 @@ const renderCustomizedPieLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, 
   );
 };
 
+// License-style Dialog Component
+const LicenseDialog = ({ open, onClose, data, chartData, photo }) => (
+  <Dialog
+    open={open}
+    onClose={onClose}
+    PaperProps={{
+      sx: {
+        borderRadius: 4,
+        width: '450px',
+        backgroundImage: 'linear-gradient(to right top, #d1e4f6, #d9e9f8, #e2eefb, #ebf3fd, #f4f8ff)',
+      }
+    }}
+  >
+    <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold', color: '#0d47a1', borderBottom: '2px solid #1976d2' }}>
+      Associate Profile Card
+    </DialogTitle>
+    <DialogContent sx={{ p: 3 }}>
+      <Card
+        elevation={4}
+        sx={{
+          p: 2,
+          borderRadius: 3,
+          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(5px)',
+        }}
+      >
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={4} sx={{ textAlign: 'center' }}>
+            {photo ? (
+              <Avatar src={photo} sx={{ width: 80, height: 80, margin: 'auto', border: '2px solid white' }} />
+            ) : (
+              <>
+                <AccountCircleIcon sx={{ fontSize: 80, color: 'grey.500' }} />
+                <Typography variant="caption" display="block">PHOTO</Typography>
+              </>
+            )}
+          </Grid>
+          <Grid item xs={8}>
+            <Typography variant="body2" color="text.secondary">Name</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>{`${data.firstName || ''} ${data.lastName || ''}`}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Title</Typography>
+            <Typography variant="body1">{data.jobRole || 'N/A'}</Typography>
+          </Grid>
+        </Grid>
+        <Box sx={{ mt: 2, borderTop: '1px dashed grey', pt: 2 }}>
+          <Grid container spacing={1}>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">Contact</Typography>
+              <Typography variant="body1">{data.mobileNumber || 'N/A'}</Typography>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="body2" color="text.secondary">Practice</Typography>
+              <Typography variant="body1">{data.practice || 'N/A'}</Typography>
+            </Grid>
+            <Grid item xs={12} sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary">Location</Typography>
+              <Typography variant="body1">
+                {[data.city, data.stateName, data.country].filter(Boolean).join(', ') || 'N/A'}
+              </Typography>
+            </Grid>
+          </Grid>
+        </Box>
+      </Card>
+    </DialogContent>
+    <DialogActions sx={{ justifyContent: 'center', p: 2 }}>
+      <Button onClick={onClose} color="primary" variant="contained">
+        Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
+
 function Summarize() {
   const location = useLocation();
   const navigate = useNavigate();
   // Correctly get projectsData, which is an array of project objects
   const { projectsData, overallExperience: routeOverallExperience, codeAIExperienceFromSummary,
-    firstName, lastName, mobileNumber // Extract name and mobile number
-  } = location.state || { projectsData: [], overallExperience: 0, codeAIExperienceFromSummary: [], firstName: "", lastName: "", mobileNumber: "" };
+    firstName, lastName, mobileNumber, city, state: stateName, country, practice, photo
+  } = location.state || {
+    projectsData: [],
+    overallExperience: 0,
+    codeAIExperienceFromSummary: [],
+    firstName: "",
+    lastName: "",
+    mobileNumber: "",
+    city: "",
+    state: "",
+    country: "",
+    practice: ""
+  };
 
 
   const [summary, setSummary] = useState("");
@@ -418,7 +503,58 @@ function Summarize() {
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false); // State for DOCX generation
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // State for PDF generation
   const [showSkillsChart, setShowSkillsChart] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [isLicenseDialogOpen, setIsLicenseDialogOpen] = useState(false); // State for the new dialog
 
+  // Generate QR Code Data URL to avoid React component issues
+  useEffect(() => {
+    if (mobileNumber && firstName && lastName && jobRole) {
+      const vCardParts = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `FN:${firstName} ${lastName}`,
+        `TITLE:${jobRole}`,
+        `TEL;TYPE=CELL:${mobileNumber}`,
+      ];
+
+      if (city || stateName || country) {
+        // ADR field format: P.O. Box; Extended Address; Street; Locality (City); Region (State); Postal Code; Country
+        vCardParts.push(`ADR;TYPE=WORK:;;;${city || ''};${stateName || ''};;${country || ''}`);
+      }
+
+      const notes = [];
+      if (summaryObject && summaryObject.skills && summaryObject.skills.length > 0) {
+        notes.push(`Key Skills: ${summaryObject.skills.join(', ')}`);
+      }
+      if (practice) {
+        notes.push(`Practice: ${practice}`);
+      }
+
+      if (notes.length > 0) {
+        // Using a separator for multiple notes. A newline within the NOTE field is also an option.
+        vCardParts.push(`NOTE:${notes.join(' | ')}`);
+      }
+
+
+      vCardParts.push('END:VCARD');
+      const vCardData = vCardParts.join('\n');
+
+      QRCode.toDataURL(vCardData, {
+        errorCorrectionLevel: 'H',
+        margin: 2,
+        width: 512,
+      })
+      .then(url => {
+        setQrCodeDataUrl(url);
+      })
+      .catch(err => {
+        console.error("Failed to generate QR code", err);
+        setQrCodeDataUrl(''); // Clear on error
+      });
+    } else {
+      setQrCodeDataUrl(''); // Clear if not all data is available
+    }
+  }, [mobileNumber, firstName, lastName, jobRole, summaryObject, city, stateName, country, practice]);
   // Determine how many years of ratings to ask for
   const getRatingYearsToAsk = useCallback((experience) => {
     if (experience < 1) return 0; // No ratings for less than 1 year
@@ -559,7 +695,7 @@ function Summarize() {
           const canvas = await html2canvas(element, {
             logging: false, // To reduce console noise during capture
             useCORS: true,  // Important if your charts use external resources like web fonts
-            scale: 3,       // Increased scale for better image resolution in DOCX
+            scale: 4,       // Increased scale for better image resolution in DOCX
           });
           return canvas.toDataURL("image/png"); // Returns base64 string
         } catch (error) {
@@ -721,7 +857,7 @@ function Summarize() {
               spacing: { after: 100, before: 200 },
             }),
             new Paragraph({
-              children: [new ImageRun({ data: pieChartImageBase64, transformation: { width: 480, height: 320 } })],
+              children: [new ImageRun({ data: pieChartImageBase64, transformation: { width: 520, height: 347 } })],
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 },
             })
@@ -740,7 +876,7 @@ function Summarize() {
               spacing: { after: 100, before: 200 },
             }),
             new Paragraph({
-              children: [new ImageRun({ data: profileScoreChartImageBase64, transformation: { width: 480, height: 270 } })],
+              children: [new ImageRun({ data: profileScoreChartImageBase64, transformation: { width: 520, height: 293 } })],
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 },
             })
@@ -760,7 +896,7 @@ function Summarize() {
               spacing: { after: 100, before: 200 },
             }),
             new Paragraph({
-              children: [new ImageRun({ data: skillsBarChartImageBase64, transformation: { width: 500, height: 400 } })],
+              children: [new ImageRun({ data: skillsBarChartImageBase64, transformation: { width: 550, height: 440 } })],
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 },
             })
@@ -770,7 +906,7 @@ function Summarize() {
       
       // --- Add QR Code if mobileNumber exists ---
       if (mobileNumber) {
-        const qrCodeImageBase64 = await captureChartAsImage('qrCodeForDocx'); // Use the new ID
+        const qrCodeImageBase64 = await captureChartAsImage('qrCodeContainer');
         if (qrCodeImageBase64) {
           docChildren.push(
             new Paragraph({
@@ -779,9 +915,14 @@ function Summarize() {
               spacing: { after: 100, before: 200 },
             }),
             new Paragraph({
-              children: [new ImageRun({ data: qrCodeImageBase64, transformation: { width: 100, height: 100 } })], // Adjust size as needed
+              children: [new ImageRun({ data: qrCodeImageBase64, transformation: { width: 450, height: 450 } })], // Adjust size as needed
               alignment: AlignmentType.CENTER,
               spacing: { after: 200 },
+            }),
+            new Paragraph({
+              text: "Scan to get in touch!",
+              alignment: AlignmentType.CENTER,
+              style: "IntenseQuote" // Using a built-in style for subtle emphasis
             })
           );
         }
@@ -835,37 +976,142 @@ function Summarize() {
 
   const generatePdf = async () => {
     setIsGeneratingPdf(true);
-    setIsDownloadDialogOpen(false); // Close dialog before starting
-
-    const summaryContentElement = document.getElementById('summaryContentToPrint');
-    if (!summaryContentElement) {
-      alert("Could not find summary content to print.");
-      setIsGeneratingPdf(false);
-      return;
-    }
+    setIsDownloadDialogOpen(false);
 
     try {
-      // Temporarily adjust styles for printing if needed, e.g., remove box shadow
-      const originalBoxShadow = summaryContentElement.style.boxShadow;
-      summaryContentElement.style.boxShadow = 'none';
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
+      let y = 20; // Current Y position
 
-      const canvas = await html2canvas(summaryContentElement, {
-        scale: 2, // Adjust scale for PDF quality
-        useCORS: true,
-        logging: false,
-        windowWidth: summaryContentElement.scrollWidth,
-        windowHeight: summaryContentElement.scrollHeight,
+      // Helper to check for page breaks
+      const checkPageBreak = (heightNeeded) => {
+        if (y + heightNeeded > 280) { // 297mm page height, with some bottom margin
+          pdf.addPage();
+          y = 20;
+        }
+      };
+
+      // Helper to add wrapped text
+      const addWrappedText = (text, x, startY, options = {}) => {
+        const { fontSize = 10, fontStyle = 'normal', maxWidth = contentWidth, lineHeightFactor = 1.5 } = options;
+        pdf.setFontSize(fontSize);
+        pdf.setFont('helvetica', fontStyle);
+        const lines = pdf.splitTextToSize(text || 'Not specified', maxWidth);
+        const lineHeight = fontSize * lineHeightFactor / pdf.internal.scaleFactor;
+        checkPageBreak(lines.length * lineHeight);
+        pdf.text(lines, x, startY);
+        return startY + (lines.length * lineHeight); // Return new y position
+      };
+      
+      // Helper to add a heading
+      const addHeading = (text, startY, fontSize = 14) => {
+          checkPageBreak(15);
+          pdf.setFontSize(fontSize);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(text, margin, startY);
+          const textWidth = pdf.getStringUnitWidth(text) * fontSize / pdf.internal.scaleFactor;
+          pdf.setLineWidth(0.5);
+          pdf.line(margin, startY + 2, margin + textWidth, startY + 2);
+          return startY + 10;
+      };
+
+      // Helper to add bullet points
+      const addBulletPoint = (text, startY) => {
+          checkPageBreak(10);
+          const bulletX = margin + 2;
+          const textX = margin + 5;
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text('•', bulletX, startY);
+          const newY = addWrappedText(text, textX, startY, { maxWidth: contentWidth - 5 });
+          return newY + 2; // Add a little space after the bullet point
+      };
+
+      // Helper function to capture chart as base64 image
+      const captureChartAsImage = async (elementId) => {
+        const element = document.getElementById(elementId);
+        if (!element) return null;
+        try {
+          const canvas = await html2canvas(element, { logging: false, useCORS: true, scale: 4 });
+          return canvas.toDataURL("image/png");
+        } catch (error) {
+          console.error(`Error capturing chart ${elementId}:`, error);
+          return null;
+        }
+      };
+
+      // --- Document Content ---
+
+      // 1. Header: Name and Title
+      pdf.setFontSize(22);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${firstName} ${lastName}`, margin, y);
+      y += 10;
+
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(jobRole || "Professional", margin, y);
+      y += 5;
+
+      // Add QR Code on the right
+      if (qrCodeDataUrl) {
+        const qrCodeSize = 40;
+        pdf.addImage(qrCodeDataUrl, 'PNG', pageWidth - margin - qrCodeSize, 15, qrCodeSize, qrCodeSize);
+      }
+      
+      // Add contact info below title
+      const contactInfo = [mobileNumber, city, stateName, country].filter(Boolean).join(' | ');
+      if (contactInfo) {
+          pdf.setFontSize(10);
+          pdf.text(contactInfo, margin, y);
+          y += 10;
+      }
+
+      // 2. Professional Summary
+      y = addHeading("Professional Summary", y);
+      y = addWrappedText(summary, margin, y);
+      y += 10;
+
+      // 3. Project Experience
+      y = addHeading("Project Experience", y);
+      projectsData.forEach(project => {
+          checkPageBreak(50); // Check space for a project header
+          y = addWrappedText(project.title || "Untitled Project", margin, y, { fontSize: 12, fontStyle: 'bold' });
+          
+          const dates = `${project.startDate ? dayjs(rehydrateDateForSummarize(project.startDate)).format('MMM YYYY') : 'N/A'} - ${project.endDate ? dayjs(rehydrateDateForSummarize(project.endDate)).format('MMM YYYY') : 'Present'}`;
+          y = addWrappedText(dates, margin, y, { fontSize: 9, fontStyle: 'italic' });
+          y += 2;
+
+          y = addWrappedText(`Role: ${project.role || 'Not specified'}`, margin, y, { fontSize: 10 });
+          y += 2;
+          y = addWrappedText(`Description: ${project.description || 'Not specified'}`, margin, y, { fontSize: 10 });
+          y += 2;
+          const technologies = [project.programmingLanguages, project.devOpsTools, project.databases, project.cloudPlatform].filter(Boolean).join(', ');
+          y = addWrappedText(`Technologies: ${technologies || 'Not specified'}`, margin, y, { fontSize: 10 });
+          y += 10;
       });
 
-      // Restore original styles
-      summaryContentElement.style.boxShadow = originalBoxShadow;
+      // 4. Charts
+      const pieChartImage = await captureChartAsImage('pieChartContainer');
+      if (pieChartImage) {
+          checkPageBreak(80);
+          y = addHeading("Top Skills Experience Distribution", y);
+          const imgProps = pdf.getImageProperties(pieChartImage);
+          const imgHeight = (imgProps.height * contentWidth) / imgProps.width;
+          pdf.addImage(pieChartImage, 'PNG', margin, y, contentWidth, imgHeight);
+          y += imgHeight + 10;
+      }
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4'); // A4 page in portrait, units in mm
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      // 5. Resume Suggestions
+      checkPageBreak(30);
+      y = addHeading("Resume Improvement Suggestions", y);
+      y = addBulletPoint("Ensure all project descriptions clearly state your specific contributions and quantifiable achievements.", y);
+      y = addBulletPoint("Tailor your summary to the specific job you are applying for, highlighting the most relevant skills.", y);
+      y = addBulletPoint("Double-check for consistency in dates and project details.", y);
+
+      // Save the PDF
       pdf.save('resume_summary.pdf');
     } catch (error) {
       console.error("Error generating PDF:", error);
@@ -1142,7 +1388,7 @@ function Summarize() {
           marginBottom: 3
         }}
       >
-        {firstName && lastName ? `${firstName} ${lastName}'s Summary` : "Candidate Profile Summary"}
+        {firstName && lastName ? `${firstName} ${lastName}'s Summary` : "Candidate Summary"}
       </Typography>
 
       <Form layout="vertical">
@@ -1449,12 +1695,27 @@ function Summarize() {
 
             {/* QR Code Display */}
             {mobileNumber && (
-              <Form.Item label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Contact QR Code</span>}>
-                <Card id="qrCodeForDocx" elevation={1} sx={{ padding: 2, backgroundColor: "#f1f8e9", border: "1px solid #c8e6c9", display: 'flex', justifyContent: 'center' }}>
-                  <QRCodeSVG value={mobileNumber} size={128} level="H" />
-                </Card>
+              <Form.Item label={<span style={{ color: "#1976d2", fontWeight: 500, fontSize: "16px" }}>Contact QR Code</span>} >
+                {qrCodeDataUrl && (
+                  <Card 
+                    id="qrCodeContainer" 
+                    elevation={1} 
+                    sx={{ 
+                      padding: 2, 
+                      backgroundColor: "#f1f8e9", 
+                      border: "1px solid #c8e6c9", 
+                      display: 'flex', 
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      '&:hover': { boxShadow: 3, borderColor: 'primary.main' }
+                    }}
+                    onClick={() => setIsLicenseDialogOpen(true)}
+                  >
+                    <img src={qrCodeDataUrl} alt={`QR code for ${firstName} ${lastName}`} width="256" height="256" />
+                  </Card>
+                )}
                 <Typography variant="caption" display="block" sx={{ textAlign: 'center', color: 'text.secondary', mt: 1 }}>
-                  Scan to get in touch!
+                  Scan to get in touch! (Click to view profile card)
                 </Typography>
               </Form.Item>
             )}
@@ -1504,6 +1765,24 @@ function Summarize() {
     </Box>
     {/* Render the Download Dialog */}
     {isDownloadDialogOpen && <DownloadDialog />}
+    {/* Render the new License Dialog */}
+    {isLicenseDialogOpen && (
+      <LicenseDialog 
+        open={isLicenseDialogOpen} 
+        onClose={() => setIsLicenseDialogOpen(false)} 
+        data={{
+          firstName,
+          lastName,
+          jobRole,
+          mobileNumber,
+          city,
+          stateName,
+          country,
+          practice
+        }}
+        photo={photo}
+      />
+    )}
     </>
   );
 }
