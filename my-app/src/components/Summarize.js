@@ -27,6 +27,7 @@ import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
+import axios from 'axios';
 
 const { TextArea } = Input;
 
@@ -1129,6 +1130,36 @@ function Summarize() {
     }
   };
 
+  const handleSaveResume = async () => {
+    if (!mobileNumber) {
+      alert("Mobile number is required to save the resume.");
+      return;
+    }
+    try {
+      await axios.post('/api/resume', {
+        mobileNumber,
+        resumeData: {
+          summary,
+          summaryObject,
+          jobRole,
+          projectsData,
+          codeAIExperienceFromSummary,
+          firstName,
+          lastName,
+          city,
+          stateName,
+          country,
+          practice,
+        },
+        qrCodeDataUrl,
+      });
+      alert("Resume saved successfully!");
+    } catch (error) {
+      alert("Failed to save resume.");
+      console.error(error);
+    }
+  };
+
   // Processing Dialog
   const ProcessingDialog = () => (
     <Dialog 
@@ -1768,6 +1799,14 @@ function Summarize() {
           sx={{ minWidth: '160px' }}
         >
           Back to Main Menu
+        </Button>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleSaveResume}
+          sx={{ minWidth: '160px' }}
+        >
+          Save Resume
         </Button>
       </Box>
     </Box>
