@@ -979,10 +979,10 @@ function Summarize() {
     setIsDownloadDialogOpen(false);
 
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pdf = new jsPDF('p', 'mm', 'a4'); // A4 page in portrait, units in mm
+      const pdfWidth = pdf.internal.pageSize.getWidth();
       const margin = 15;
-      const contentWidth = pageWidth - margin * 2;
+      const contentWidth = pdfWidth - margin * 2;
       let y = 20; // Current Y position
 
       // Helper to check for page breaks
@@ -1058,7 +1058,7 @@ function Summarize() {
       // Add QR Code on the right
       if (qrCodeDataUrl) {
         const qrCodeSize = 40;
-        pdf.addImage(qrCodeDataUrl, 'PNG', pageWidth - margin - qrCodeSize, 15, qrCodeSize, qrCodeSize);
+        pdf.addImage(qrCodeDataUrl, 'PNG', pdfWidth - margin - qrCodeSize, 15, qrCodeSize, qrCodeSize);
       }
       
       // Add contact info below title
@@ -1067,6 +1067,14 @@ function Summarize() {
           pdf.setFontSize(10);
           pdf.text(contactInfo, margin, y);
           y += 10;
+      }
+
+      // If a QR code was added, ensure the next content starts below it to prevent overlap.
+      if (qrCodeDataUrl) {
+        const qrCodeBottomY = 15 + 40 + 5; // QR y-start (15) + QR height (40) + padding (5)
+        if (y < qrCodeBottomY) {
+          y = qrCodeBottomY;
+        }
       }
 
       // 2. Professional Summary
