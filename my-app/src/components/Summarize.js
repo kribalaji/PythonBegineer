@@ -1155,7 +1155,7 @@ function Summarize() {
       });
       alert("Resume saved successfully!");
     } catch (error) {
-      alert("Failed to save resume.");
+      alert("Failed to save resume: " + (error.response?.data?.message || error.message));
       console.error(error);
     }
   };
